@@ -1,24 +1,24 @@
 """
 utils/gradcam.py — Smart Paddy AI: Grad-CAM Explainability
 """
-
 import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 import numpy as np
 import cv2
 import tensorflow as tf
+import tf_keras
 from PIL import Image
 import io
 
 
 def _find_last_conv_layer(model) -> str:
     for layer in reversed(model.layers):
-        if isinstance(layer, tf.keras.layers.Conv2D):
+        if isinstance(layer, tf_keras.layers.Conv2D):
             return layer.name
         if hasattr(layer, "layers"):
             for sub in reversed(layer.layers):
-                if isinstance(sub, tf.keras.layers.Conv2D):
+                if isinstance(sub, tf_keras.layers.Conv2D):
                     return sub.name
     raise ValueError("No Conv2D layer found in model.")
 
@@ -27,7 +27,7 @@ def compute_gradcam(model, img_array, class_index, layer_name=None):
     if layer_name is None:
         layer_name = _find_last_conv_layer(model)
 
-    grad_model = tf.keras.models.Model(
+    grad_model = tf_keras.models.Model(
         inputs=model.inputs,
         outputs=[model.get_layer(layer_name).output, model.output],
     )
