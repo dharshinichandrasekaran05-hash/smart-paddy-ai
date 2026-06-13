@@ -1,7 +1,6 @@
 """
 utils/predict.py — Smart Paddy AI: Prediction Engine
 """
-
 import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
@@ -9,7 +8,8 @@ import json
 import numpy as np
 from PIL import Image
 import tensorflow as tf
-from tensorflow.keras.models import load_model
+import tf_keras
+from tf_keras.models import load_model
 
 # ─────────────────────── PATHS ────────────────────────────────
 MODEL_PATH     = "model/paddy_model.h5"
@@ -23,7 +23,6 @@ _model         = None
 _class_names   = None
 _class_indices = None
 
-
 # ─────────────────────── LOADERS ──────────────────────────────
 def _load_class_indices() -> dict:
     if not os.path.exists(CLASS_IDX_PATH):
@@ -33,7 +32,6 @@ def _load_class_indices() -> dict:
         )
     with open(CLASS_IDX_PATH, "r") as f:
         return json.load(f)
-
 
 def get_model():
     global _model, _class_names, _class_indices
@@ -58,7 +56,6 @@ def get_model():
 
     return _model, _class_names
 
-
 # ─────────────────────── PREPROCESSING ────────────────────────
 def preprocess(image: Image.Image) -> np.ndarray:
     image = image.convert("RGB")
@@ -66,7 +63,6 @@ def preprocess(image: Image.Image) -> np.ndarray:
     img = np.array(image, dtype=np.float32)
     img = np.expand_dims(img, axis=0)
     return img
-
 
 # ─────────────────────── PREDICTION ───────────────────────────
 def predict_image(image: Image.Image):
