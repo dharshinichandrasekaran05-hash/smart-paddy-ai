@@ -1,6 +1,6 @@
 streamlit
-tensorflow-cpu
-numpy
+tensorflow==2.13.0
+numpy==1.24.3
 Pillow
 opencv-python-headless
 scikit-learn
@@ -11,3 +11,4 @@ reportlab
 gTTS
 pandas
 tqdm
+tf-keras
