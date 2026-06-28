@@ -1,14 +1,18 @@
 """
 app.py — Smart Paddy AI: Main Application
-Fix applied: downy_mildew confidence boost (threshold trick) — no retraining needed.
+Role-based access control:
+  - Admin  (dharshu / admin123): all pages
+  - Guest  (no login required):  Diagnosis + Chatbot only
 """
 
 import os
+import csv
 import json
 import numpy as np
 import pandas as pd
 import streamlit as st
 from PIL import Image
+from datetime import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -31,7 +35,9 @@ from utils.evaluation import (
     plot_roc_curves, load_training_plots,
 )
 
-# ─────────────────────── APP CONFIG ───────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# APP CONFIG
+# ═══════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Smart Paddy AI",
     page_icon="🌾",
@@ -39,7 +45,61 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─────────────────────── CUSTOM CSS ───────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# CONSTANTS
+# ═══════════════════════════════════════════════════════════════
+ADMIN_USERNAME = "dharshu"
+ADMIN_PASSWORD = "admin123"
+PRED_LOG_FILE  = "predictions_log.csv"
+
+# Pages each role can access — used for nav AND access-guard
+GUEST_PAGES = ["🔬 Diagnosis", "💬 Chatbot"]
+ADMIN_PAGES = ["🔬 Diagnosis", "💬 Chatbot", "📊 Analytics",
+               "📐 Research Metrics", "👑 Admin Dashboard", "📋 Full History"]
+
+# ═══════════════════════════════════════════════════════════════
+# SESSION STATE — initialise once
+# ═══════════════════════════════════════════════════════════════
+for key, default in {
+    "logged_in": False,
+    "is_admin":  False,
+    "username":  "Guest",
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+# ═══════════════════════════════════════════════════════════════
+# CSV PREDICTION LOGGER
+# ═══════════════════════════════════════════════════════════════
+def init_pred_log():
+    if not os.path.exists(PRED_LOG_FILE):
+        with open(PRED_LOG_FILE, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow(["Username", "Time", "Predicted Disease"])
+
+def log_pred_csv(username: str, disease: str):
+    init_pred_log()
+    with open(PRED_LOG_FILE, "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([username, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), disease])
+
+def load_pred_log() -> pd.DataFrame:
+    init_pred_log()
+    try:
+        return pd.read_csv(PRED_LOG_FILE)
+    except Exception:
+        return pd.DataFrame(columns=["Username", "Time", "Predicted Disease"])
+
+# ═══════════════════════════════════════════════════════════════
+# ACCESS GUARD  — call at the top of every restricted page
+# ═══════════════════════════════════════════════════════════════
+def require_admin():
+    """Stop rendering and show an error if the current user is not admin."""
+    if not st.session_state.is_admin:
+        st.error("🚫 Access Denied. This page is for administrators only.")
+        st.stop()
+
+# ═══════════════════════════════════════════════════════════════
+# CUSTOM CSS
+# ═══════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -50,8 +110,12 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     background: linear-gradient(160deg, #0d3b1e 0%, #145a32 60%, #1e8449 100%);
 }
 [data-testid="stSidebar"] * { color: white !important; }
-[data-testid="stSidebar"] .stSelectbox > div > div {
-    background: rgba(255,255,255,0.1);
+[data-testid="stSidebar"] .stSelectbox > div > div { background: rgba(255,255,255,0.1); }
+[data-testid="stSidebar"] .stTextInput input {
+    background: rgba(255,255,255,0.12) !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    color: white !important;
+    border-radius: 6px;
 }
 
 .stat-card {
@@ -123,51 +187,49 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .badge-high   { background: #ffcdd2; color: #c62828; }
 .badge-medium { background: #fff9c4; color: #f57f17; }
 .badge-low    { background: #c8e6c9; color: #1b5e20; }
+
+.role-tag {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.role-admin { background: rgba(255,193,7,0.25); border: 1px solid rgba(255,193,7,0.6); }
+.role-guest { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); }
 </style>
 """, unsafe_allow_html=True)
 
-# ─────────────────────── INIT ─────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# INIT BACKENDS
+# ═══════════════════════════════════════════════════════════════
 init_db()
+init_pred_log()
 model, class_names = get_model()
 
-# ─────────────────────── DOWNY MILDEW FIX ─────────────────────
-# The model has 59.79% recall for downy_mildew despite balanced data.
-# This is a visual similarity problem — the model rarely predicts it.
-# Fix: boost downy_mildew's raw probability by 30% before argmax decision.
-# This does NOT change the model weights — just adjusts the decision threshold.
-
-DOWNY_MILDEW_BOOST = 1.30  # 30% boost — tune up/down if needed
+# ═══════════════════════════════════════════════════════════════
+# DOWNY MILDEW CONFIDENCE FIX  (threshold trick — no retraining)
+# ═══════════════════════════════════════════════════════════════
+DOWNY_MILDEW_BOOST = 1.30
 
 def predict_with_fix(image):
-    """
-    Wraps predict_image() and applies downy_mildew confidence boost.
-    Returns: (label, confidence, all_probs_dict)
-    """
     label, confidence, all_probs = predict_image(image)
-
-    # Build raw prob array in class order
     probs_array = np.array([all_probs.get(cn, 0.0) for cn in class_names])
-
-    # Apply boost to downy_mildew
     if "downy_mildew" in class_names:
-        dm_idx = class_names.index("downy_mildew")
-        probs_array[dm_idx] *= DOWNY_MILDEW_BOOST
-
-    # Re-normalise so probs sum to 1
-    probs_array = probs_array / probs_array.sum()
-
-    # Re-derive label and confidence
-    best_idx   = int(np.argmax(probs_array))
-    label      = class_names[best_idx]
-    confidence = float(probs_array[best_idx])
-
-    # Rebuild all_probs dict as percentages
+        probs_array[class_names.index("downy_mildew")] *= DOWNY_MILDEW_BOOST
+    probs_array  = probs_array / probs_array.sum()
+    best_idx     = int(np.argmax(probs_array))
+    label        = class_names[best_idx]
+    confidence   = float(probs_array[best_idx])
     all_probs_fixed = {cn: round(float(probs_array[i]) * 100, 2)
                        for i, cn in enumerate(class_names)}
-
     return label, confidence, all_probs_fixed
 
-# ─────────────────────── I18N ─────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# I18N LABELS
+# ═══════════════════════════════════════════════════════════════
 LABELS = {
     "english": {
         "title":        "Smart Paddy AI",
@@ -225,11 +287,28 @@ LABELS = {
     },
 }
 
-# ─────────────────────── SIDEBAR ──────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# SIDEBAR
+# ═══════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("## 🌾 Smart Paddy AI")
     st.markdown("---")
 
+    # ── Role identity badge ────────────────────────────────────
+    if st.session_state.is_admin:
+        st.markdown(
+            "<div style='margin-bottom:8px'>Signed in as &nbsp;"
+            "<span class='role-tag role-admin'>👑 Admin</span></div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<div style='margin-bottom:8px'>Browsing as &nbsp;"
+            "<span class='role-tag role-guest'>👤 Guest</span></div>",
+            unsafe_allow_html=True,
+        )
+
+    # ── Language selector ──────────────────────────────────────
     lang = st.selectbox(
         "🌐 Language / மொழி",
         ["english", "tamil"],
@@ -238,20 +317,44 @@ with st.sidebar:
     L = LABELS[lang]
 
     st.markdown("---")
-    page = st.radio(
-        "Navigate",
-        ["🔬 Diagnosis", "💬 Chatbot", "📊 Analytics", "📐 Research Metrics"],
-        label_visibility="collapsed",
-    )
+
+    # ── Navigation — list filtered by role ────────────────────
+    allowed_pages = ADMIN_PAGES if st.session_state.is_admin else GUEST_PAGES
+    page = st.radio("Navigate", allowed_pages, label_visibility="collapsed")
 
     st.markdown("---")
+
+    # ── Optional farmer details (guest + admin) ────────────────
     st.markdown("**Optional Details**")
     farmer_name = st.text_input("Farmer Name", placeholder="e.g. Murugan")
     location    = st.text_input("Location",    placeholder="e.g. Thanjavur")
 
+    st.markdown("---")
+
+    # ── Admin login / logout ───────────────────────────────────
+    if not st.session_state.is_admin:
+        st.markdown("**Admin Login**")
+        a_user = st.text_input("Username", key="sb_admin_user")
+        a_pass = st.text_input("Password", type="password", key="sb_admin_pass")
+        if st.button("Login as Admin"):
+            if a_user == ADMIN_USERNAME and a_pass == ADMIN_PASSWORD:
+                st.session_state.logged_in = True
+                st.session_state.is_admin  = True
+                st.session_state.username  = ADMIN_USERNAME
+                st.success("Logged in ✅")
+                st.rerun()
+            else:
+                st.error("Invalid credentials.")
+    else:
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.session_state.is_admin  = False
+            st.session_state.username  = "Guest"
+            st.rerun()
+
 
 # ═══════════════════════════════════════════════════════════════
-# PAGE: DIAGNOSIS
+# PAGE: DIAGNOSIS  — Guest + Admin
 # ═══════════════════════════════════════════════════════════════
 if "🔬 Diagnosis" in page:
 
@@ -265,13 +368,24 @@ if "🔬 Diagnosis" in page:
         image = Image.open(uploaded_file).convert("RGB")
 
         with st.spinner("Analysing leaf..."):
-            # ✅ Using fixed predict function with downy_mildew boost
             label, confidence, all_probs = predict_with_fix(image)
+
+        # ── Resolve final username for logging ─────────────────
+        # Priority: typed Farmer Name > session username > "Guest"
+        if farmer_name and farmer_name.strip():
+            resolved_username = farmer_name.strip()
+        elif st.session_state.username:
+            resolved_username = st.session_state.username
+        else:
+            resolved_username = "Guest"
+
+        # Log to both CSV and SQLite
+        log_pred_csv(resolved_username, label)
 
         advisory_both = get_advisory_both_langs(label)
         advisory      = advisory_both[lang]
 
-        # ── GRAD-CAM ──────────────────────────────────────────
+        # ── Grad-CAM ───────────────────────────────────────────
         with st.spinner("Generating explainability heatmap..."):
             try:
                 class_index       = class_names.index(label)
@@ -282,12 +396,11 @@ if "🔬 Diagnosis" in page:
                 cam_img  = None
                 orig_img = image.resize((224, 224))
 
-        # ── SEVERITY + HEALTH ─────────────────────────────────
+        # ── Severity + Health ──────────────────────────────────
         if gradcam_available:
             from utils.gradcam import compute_gradcam
             from utils.predict import preprocess
-            img_arr = preprocess(image)
-            heatmap = compute_gradcam(model, img_arr, class_index)
+            heatmap = compute_gradcam(model, preprocess(image), class_index)
         else:
             heatmap = None
 
@@ -300,9 +413,10 @@ if "🔬 Diagnosis" in page:
             severity=severity["percentage"],
             health_idx=health["score"],
             location=location,
+            farmer_name=resolved_username,
         )
 
-        # ── GRADCAM + RESULT COLUMNS ───────────────────────────
+        # ── Image + Result columns ─────────────────────────────
         col_img, col_res = st.columns([1, 1], gap="large")
 
         with col_img:
@@ -312,10 +426,10 @@ if "🔬 Diagnosis" in page:
             )
             img_col1, img_col2 = st.columns(2)
             with img_col1:
-                st.image(orig_img, caption=L["orig"], use_column_width=True)
+                st.image(orig_img, caption=L["orig"], width="stretch")
             with img_col2:
                 if gradcam_available:
-                    st.image(cam_img, caption=L["heatmap"], use_column_width=True)
+                    st.image(cam_img, caption=L["heatmap"], width="stretch")
                     st.download_button(
                         label=L["download_cam"],
                         data=pil_to_bytes(cam_img),
@@ -333,18 +447,16 @@ if "🔬 Diagnosis" in page:
 
             disease_color = {
                 "blast": "#f39c12", "brown_spot": "#e74c3c",
-                "tungro": "#5c6bc0", "normal": "#27ae60",
-                "healthy": "#27ae60",
+                "tungro": "#5c6bc0", "normal": "#27ae60", "healthy": "#27ae60",
             }.get(label.lower(), "#555")
 
             st.markdown(
                 f"<div style='font-size:30px;font-weight:800;color:{disease_color}'>"
-                f"{'🌿' if label.lower() in ['healthy','normal'] else '⚠️'} {label.replace('_',' ').title()}"
-                f"</div>",
+                f"{'🌿' if label.lower() in ['healthy','normal'] else '⚠️'} "
+                f"{label.replace('_',' ').title()}</div>",
                 unsafe_allow_html=True,
             )
 
-            # ✅ FIX: Risk level should reflect BOTH confidence AND whether plant is healthy
             is_healthy = label.lower() in ("normal", "healthy")
 
             if is_healthy:
@@ -376,50 +488,40 @@ if "🔬 Diagnosis" in page:
             st.markdown("<br>", unsafe_allow_html=True)
 
             c1, c2, c3 = st.columns(3)
-
             with c1:
                 st.markdown(
-                    f"<div class='stat-card'>"
-                    f"<h4>{L['confidence']}</h4>"
-                    f"<div class='val'>{confidence * 100:.1f}%</div>"
-                    f"</div>",
+                    f"<div class='stat-card'><h4>{L['confidence']}</h4>"
+                    f"<div class='val'>{confidence * 100:.1f}%</div></div>",
                     unsafe_allow_html=True,
                 )
             with c2:
-                sev_color = severity["color"]
-                sev_label = severity["label"]
-                sev_pct   = severity["percentage"]
                 st.markdown(
-                    f"<div class='stat-card' style='border-color:{sev_color}'>"
+                    f"<div class='stat-card' style='border-color:{severity['color']}'>"
                     f"<h4>{L['severity']}</h4>"
-                    f"<div class='val' style='color:{sev_color}'>"
-                    f"{sev_label}<br>"
-                    f"<span style='font-size:15px'>{sev_pct}%</span>"
+                    f"<div class='val' style='color:{severity['color']}'>"
+                    f"{severity['label']}<br>"
+                    f"<span style='font-size:15px'>{severity['percentage']}%</span>"
                     f"</div></div>",
                     unsafe_allow_html=True,
                 )
             with c3:
-                hlth_color    = health["color"]
-                hlth_score    = health["score"]
-                hlth_category = health["category"]
                 st.markdown(
-                    f"<div class='stat-card' style='border-color:{hlth_color}'>"
+                    f"<div class='stat-card' style='border-color:{health['color']}'>"
                     f"<h4>{L['health']}</h4>"
-                    f"<div class='val' style='color:{hlth_color}'>"
-                    f"{hlth_score}/100<br>"
-                    f"<span style='font-size:15px'>{hlth_category}</span>"
+                    f"<div class='val' style='color:{health['color']}'>"
+                    f"{health['score']}/100<br>"
+                    f"<span style='font-size:15px'>{health['category']}</span>"
                     f"</div></div>",
                     unsafe_allow_html=True,
                 )
 
         st.markdown("---")
 
-        # ── ALL CLASS PROBABILITIES ────────────────────────────
+        # ── All class probabilities ────────────────────────────
         st.markdown(
             f"<div class='section-header'>{L['all_conf']}</div>",
             unsafe_allow_html=True,
         )
-
         sorted_probs = sorted(all_probs.items(), key=lambda x: -x[1])
         cols = st.columns(len(sorted_probs))
         for i, (cls, pct) in enumerate(sorted_probs):
@@ -451,21 +553,18 @@ if "🔬 Diagnosis" in page:
             textposition="outside",
         ))
         sev_fig.update_layout(
-            height=250,
-            margin=dict(l=10, r=10, t=20, b=20),
-            yaxis_range=[0, 110],
-            showlegend=False,
+            height=250, margin=dict(l=10, r=10, t=20, b=20),
+            yaxis_range=[0, 110], showlegend=False,
         )
         st.plotly_chart(sev_fig, use_container_width=True)
 
         st.markdown("---")
 
-        # ── ADVISORY ──────────────────────────────────────────
+        # ── Advisory ───────────────────────────────────────────
         st.markdown(
             f"<div class='section-header'>🌱 {L['advisory']}</div>",
             unsafe_allow_html=True,
         )
-
         adv_col1, adv_col2 = st.columns([1, 1], gap="large")
 
         with adv_col1:
@@ -506,7 +605,7 @@ if "🔬 Diagnosis" in page:
 
         st.markdown("---")
 
-        # ── PDF REPORT ────────────────────────────────────────
+        # ── PDF Report ─────────────────────────────────────────
         st.markdown("<div class='section-header'>📄 Report</div>", unsafe_allow_html=True)
         if st.button(f"📥 {L['download_pdf']}", type="primary"):
             with st.spinner("Building PDF report..."):
@@ -541,7 +640,7 @@ if "🔬 Diagnosis" in page:
 
 
 # ═══════════════════════════════════════════════════════════════
-# PAGE: CHATBOT
+# PAGE: CHATBOT  — Guest + Admin
 # ═══════════════════════════════════════════════════════════════
 elif "💬 Chatbot" in page:
 
@@ -604,9 +703,11 @@ elif "💬 Chatbot" in page:
 
 
 # ═══════════════════════════════════════════════════════════════
-# PAGE: ANALYTICS
+# PAGE: ANALYTICS  — Admin only
 # ═══════════════════════════════════════════════════════════════
 elif "📊 Analytics" in page:
+
+    require_admin()
 
     st.markdown(f"<h2 style='color:#145a32'>📊 {L['analytics']}</h2>", unsafe_allow_html=True)
 
@@ -626,10 +727,10 @@ elif "📊 Analytics" in page:
 
         s1, s2, s3, s4 = st.columns(4)
         for col, val, label_text, color in [
-            (s1, str(total),              "Total Scans",         "#3498db"),
-            (s2, most_common,             "Most Common Disease",  "#e74c3c"),
-            (s3, f"{avg_conf:.1f}%",      "Avg Confidence",       "#27ae60"),
-            (s4, f"{avg_health:.0f}/100", "Avg Health Index",     "#f39c12"),
+            (s1, str(total),              "Total Scans",        "#3498db"),
+            (s2, most_common,             "Most Common Disease", "#e74c3c"),
+            (s3, f"{avg_conf:.1f}%",      "Avg Confidence",      "#27ae60"),
+            (s4, f"{avg_health:.0f}/100", "Avg Health Index",    "#f39c12"),
         ]:
             with col:
                 st.markdown(
@@ -662,9 +763,7 @@ elif "📊 Analytics" in page:
                 text="Count",
             )
             fig_bar.update_traces(textposition="outside")
-            fig_bar.update_layout(
-                height=320, margin=dict(l=0,r=0,t=20,b=0), showlegend=False,
-            )
+            fig_bar.update_layout(height=320, margin=dict(l=0,r=0,t=20,b=0), showlegend=False)
             st.plotly_chart(fig_bar, use_container_width=True)
 
         st.markdown("#### Monthly Scan Trends")
@@ -696,9 +795,11 @@ elif "📊 Analytics" in page:
 
 
 # ═══════════════════════════════════════════════════════════════
-# PAGE: RESEARCH METRICS
+# PAGE: RESEARCH METRICS  — Admin only
 # ═══════════════════════════════════════════════════════════════
 elif "📐 Research" in page:
+
+    require_admin()
 
     st.markdown(f"<h2 style='color:#145a32'>📐 {L['research']}</h2>", unsafe_allow_html=True)
     st.caption(
@@ -710,11 +811,11 @@ elif "📐 Research" in page:
 
     if train_curves:
         st.markdown("#### Training Curves (from last training run)")
-        st.image(train_curves, use_column_width=True)
+        st.image(train_curves, width="stretch")
 
     if saved_cm:
         st.markdown("#### Confusion Matrix (from last training run)")
-        st.image(saved_cm, use_column_width=True)
+        st.image(saved_cm, width="stretch")
 
     st.markdown("---")
     st.markdown("#### Upload Evaluation Data (Optional)")
@@ -772,3 +873,131 @@ elif "📐 Research" in page:
     }
     info_rows = [{"Parameter": k, "Value": v} for k, v in model_info.items()]
     st.dataframe(pd.DataFrame(info_rows), use_container_width=True, hide_index=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# PAGE: ADMIN DASHBOARD  — Admin only
+# ═══════════════════════════════════════════════════════════════
+elif "👑 Admin Dashboard" in page:
+
+    require_admin()
+
+    st.markdown("<h2 style='color:#145a32'>👑 Admin Dashboard</h2>", unsafe_allow_html=True)
+    st.caption("System-wide usage summary and disease statistics.")
+    st.markdown("---")
+
+    log_df = load_pred_log()
+
+    if log_df.empty:
+        st.info("No predictions have been logged yet.")
+    else:
+        total_scans  = len(log_df)
+        unique_users = log_df["Username"].nunique()
+        top_disease  = log_df["Predicted Disease"].value_counts().idxmax()
+
+        a1, a2, a3 = st.columns(3)
+        for col, val, label_text, color in [
+            (a1, str(total_scans),  "Total Predictions", "#3498db"),
+            (a2, str(unique_users), "Unique Users",       "#27ae60"),
+            (a3, top_disease,       "Top Disease",        "#e74c3c"),
+        ]:
+            with col:
+                st.markdown(
+                    f"<div class='stat-card' style='border-color:{color}'>"
+                    f"<h4>{label_text}</h4><div class='val'>{val}</div></div>",
+                    unsafe_allow_html=True,
+                )
+
+        st.markdown("---")
+        ch1, ch2 = st.columns(2)
+
+        with ch1:
+            st.markdown("#### Predictions by Disease")
+            disease_counts         = log_df["Predicted Disease"].value_counts().reset_index()
+            disease_counts.columns = ["Disease", "Count"]
+            fig_bar = px.bar(
+                disease_counts, x="Disease", y="Count",
+                color="Disease",
+                color_discrete_sequence=["#27ae60","#e74c3c","#f39c12","#3498db","#9b59b6"],
+                text="Count",
+            )
+            fig_bar.update_traces(textposition="outside")
+            fig_bar.update_layout(height=300, margin=dict(l=0,r=0,t=20,b=0), showlegend=False)
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        with ch2:
+            st.markdown("#### Scans per User")
+            user_counts         = log_df["Username"].value_counts().reset_index()
+            user_counts.columns = ["Username", "Scans"]
+            fig_user = px.bar(
+                user_counts, x="Username", y="Scans",
+                color="Username",
+                color_discrete_sequence=["#3498db","#27ae60","#f39c12","#e74c3c"],
+                text="Scans",
+            )
+            fig_user.update_traces(textposition="outside")
+            fig_user.update_layout(height=300, margin=dict(l=0,r=0,t=20,b=0), showlegend=False)
+            st.plotly_chart(fig_user, use_container_width=True)
+
+        st.markdown("#### Recent Activity (last 10 scans)")
+        st.dataframe(
+            log_df.tail(10).iloc[::-1].reset_index(drop=True),
+            use_container_width=True,
+        )
+
+        st.markdown("---")
+        st.markdown(f"#### Full Prediction History ({total_scans} records)")
+        st.dataframe(
+            log_df.iloc[::-1].reset_index(drop=True),
+            use_container_width=True,
+        )
+        csv_bytes_admin = log_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇️ Download Full Log as CSV",
+            data=csv_bytes_admin,
+            file_name="paddy_predictions_log.csv",
+            mime="text/csv",
+            key="admin_dashboard_full_log_download",
+        )
+
+
+# ═══════════════════════════════════════════════════════════════
+# PAGE: FULL HISTORY  — Admin only
+# ═══════════════════════════════════════════════════════════════
+elif "📋 Full History" in page:
+
+    require_admin()
+
+    st.markdown("<h2 style='color:#145a32'>📋 Full Prediction History</h2>", unsafe_allow_html=True)
+    st.caption("Complete log of every prediction across all users.")
+    st.markdown("---")
+
+    log_df = load_pred_log()
+
+    if log_df.empty:
+        st.info("No prediction records found.")
+    else:
+        fc1, fc2 = st.columns(2)
+        with fc1:
+            all_users     = ["All Users"] + sorted(log_df["Username"].unique().tolist())
+            selected_user = st.selectbox("Filter by User", all_users)
+        with fc2:
+            all_diseases     = ["All Diseases"] + sorted(log_df["Predicted Disease"].unique().tolist())
+            selected_disease = st.selectbox("Filter by Disease", all_diseases)
+
+        filtered = log_df.copy()
+        if selected_user != "All Users":
+            filtered = filtered[filtered["Username"] == selected_user]
+        if selected_disease != "All Diseases":
+            filtered = filtered[filtered["Predicted Disease"] == selected_disease]
+
+        st.markdown(f"Showing **{len(filtered)}** of **{len(log_df)}** records.")
+        st.dataframe(filtered.reset_index(drop=True), use_container_width=True)
+
+        csv_bytes = filtered.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇️ Download Filtered Log as CSV",
+            data=csv_bytes,
+            file_name="paddy_predictions_log.csv",
+            mime="text/csv",
+        )
