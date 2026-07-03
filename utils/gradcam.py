@@ -1,4 +1,3 @@
-```python
 from __future__ import annotations
 
 import io
@@ -207,4 +206,91 @@ def compute_gradcam(
         "Grad-CAM could not be computed with any available strategy.",
         trace="\n\n".join(attempts_trace),
     )
-```
+
+
+def _finalize_heatmap(conv_outputs, grads) -> np.ndarray:
+    if grads is None:
+        raise GradCAMError(
+            "Gradient computation returned None — the conv output and "
+            "model output are disconnected in the graph."
+        )
+
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    conv_outputs = conv_outputs[0]
+    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+
+    # ReLU + normalise
+    heatmap = tf.nn.relu(heatmap).numpy()
+    if heatmap.max() > 0:
+        heatmap = heatmap / heatmap.max()
+
+    return heatmap.astype(np.float32)
+
+
+# ─────────────────────── OVERLAY ─────────────────────────────
+def overlay_heatmap(
+    original_image: Image.Image,
+    heatmap: np.ndarray,
+    alpha: float = 0.45,
+    colormap: int = cv2.COLORMAP_JET,
+) -> Image.Image:
+    """
+    Overlay a Grad-CAM heatmap onto the original PIL image.
+
+    Returns
+    -------
+    PIL Image with the coloured heatmap blended onto the original.
+    """
+    orig_w, orig_h = original_image.size
+    orig_rgb = np.array(original_image.convert("RGB"))
+
+    # Resize heatmap to match original image
+    heatmap_resized = cv2.resize(heatmap, (orig_w, orig_h))
+
+    # Convert heatmap to uint8 colour map
+    heatmap_uint8 = np.uint8(255 * heatmap_resized)
+    heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
+    heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+
+    # Blend
+    overlay = cv2.addWeighted(orig_rgb, 1 - alpha, heatmap_colored, alpha, 0)
+
+    return Image.fromarray(overlay)
+
+
+# ─────────────────────── CONVENIENCE ─────────────────────────
+def generate_gradcam(
+    model,
+    pil_image: Image.Image,
+    class_index: int,
+) -> tuple[Image.Image, Image.Image]:
+    """
+    Full pipeline: preprocess → Grad-CAM → overlay.
+
+    Returns
+    -------
+    (original_image, overlaid_image) — both as PIL Images (224×224)
+
+    Raises
+    ------
+    GradCAMError — propagated from `compute_gradcam` if every strategy
+    fails, so the caller (app.py) can show the real diagnostic instead
+    of a generic message.
+    """
+    from utils.predict import preprocess  # avoid circular import
+
+    img_array = preprocess(pil_image)
+
+    heatmap = compute_gradcam(model, img_array, class_index)
+    resized = pil_image.resize((224, 224), Image.LANCZOS)
+    overlaid = overlay_heatmap(resized, heatmap)
+
+    return resized, overlaid
+
+
+def pil_to_bytes(img: Image.Image, fmt: str = "PNG") -> bytes:
+    """Convert a PIL Image to raw bytes for Streamlit download."""
+    buf = io.BytesIO()
+    img.save(buf, format=fmt)
+    return buf.getvalue()
