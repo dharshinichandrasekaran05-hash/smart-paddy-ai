@@ -117,3 +117,104 @@ def crop_health_index(
         category, color = "Poor",      "#e74c3c"
 
     return {"score": score, "category": category, "color": color}
+
+
+# ═══════════════════════════════════════════════════════════════
+# NEW — Feature 3: Enhanced Crop Health Intelligence Dashboard
+# ═══════════════════════════════════════════════════════════════
+# This function REUSES estimate_severity() and crop_health_index() above —
+# it does not recompute severity or health from scratch. It only derives
+# the additional qualitative indicators the dashboard needs.
+def advanced_health_dashboard(
+    predicted_class: str,
+    confidence: float,
+    severity_result: dict,
+    health_result: dict,
+) -> dict:
+    """
+    Build the extra fields needed for the "Enhanced Crop Health Intelligence
+    Dashboard" without altering existing severity/health calculations.
+
+    Parameters
+    ----------
+    predicted_class : str
+    confidence       : float (0-1)
+    severity_result  : dict returned by estimate_severity()
+    health_result    : dict returned by crop_health_index()
+
+    Returns
+    -------
+    dict with keys:
+        risk_indicator     : "Low" | "Medium" | "High"
+        recovery_potential : label + color
+        confidence_meter    : rounded percentage for gauge display
+        leaf_quality        : label + color
+        ai_summary          : short natural-language paragraph
+    """
+    is_healthy = predicted_class.lower() in ("healthy", "normal")
+    severity_pct = severity_result["percentage"]
+    health_score = health_result["score"]
+
+    # ── Disease Risk Indicator ──────────────────────────────────
+    if is_healthy:
+        risk_indicator, risk_color = "Low", "#28a745"
+    elif severity_pct >= 60:
+        risk_indicator, risk_color = "High", "#dc3545"
+    elif severity_pct >= 30:
+        risk_indicator, risk_color = "Medium", "#ffc107"
+    else:
+        risk_indicator, risk_color = "Low", "#28a745"
+
+    # ── Recovery Potential ───────────────────────────────────────
+    # Higher health score + lower severity => better recovery outlook.
+    if is_healthy:
+        recovery_label, recovery_color = "Not Applicable", "#95a5a6"
+    else:
+        recovery_score = (health_score * 0.6) + ((100 - severity_pct) * 0.4)
+        if recovery_score >= 70:
+            recovery_label, recovery_color = "High", "#27ae60"
+        elif recovery_score >= 45:
+            recovery_label, recovery_color = "Moderate", "#f39c12"
+        else:
+            recovery_label, recovery_color = "Low", "#e74c3c"
+
+    # ── AI Confidence Meter (just a formatted pass-through) ───────
+    confidence_meter = round(confidence * 100, 1)
+
+    # ── Leaf Quality Assessment ────────────────────────────────
+    # Combines health score with severity to give a plain-language
+    # quality label for the leaf tissue itself.
+    if is_healthy:
+        leaf_quality, lq_color = "Excellent", "#27ae60"
+    elif health_score >= 75:
+        leaf_quality, lq_color = "Good", "#2ecc71"
+    elif health_score >= 50:
+        leaf_quality, lq_color = "Fair", "#f39c12"
+    else:
+        leaf_quality, lq_color = "Poor", "#e74c3c"
+
+    # ── AI-generated health summary ────────────────────────────
+    disease_name = predicted_class.replace("_", " ").title()
+    if is_healthy:
+        ai_summary = (
+            f"This plant shows no disease indicators. Confidence in this "
+            f"assessment is {confidence_meter}%. Continue routine monitoring."
+        )
+    else:
+        ai_summary = (
+            f"{disease_name} detected with {confidence_meter}% confidence. "
+            f"Estimated severity is {severity_result['label']} ({severity_pct}%), "
+            f"placing crop health at {health_score}/100 ({health_result['category']}). "
+            f"Recovery potential is assessed as {recovery_label.lower()} with prompt treatment."
+        )
+
+    return {
+        "risk_indicator": risk_indicator,
+        "risk_color": risk_color,
+        "recovery_potential": recovery_label,
+        "recovery_color": recovery_color,
+        "confidence_meter": confidence_meter,
+        "leaf_quality": leaf_quality,
+        "leaf_quality_color": lq_color,
+        "ai_summary": ai_summary,
+    }
