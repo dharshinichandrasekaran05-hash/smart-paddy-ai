@@ -1,7 +1,9 @@
-# app.py — Smart Paddy AI: Main Application
-# Role-based access control:
-#   - Admin  (dharshu / admin123): all pages
-#   - Guest  (no login required):  Diagnosis + Chatbot only
+"""
+app.py — Smart Paddy AI: Main Application
+Role-based access control:
+  - Admin  (dharshu / admin123): all pages
+  - Guest  (no login required):  Diagnosis + Chatbot only
+"""
 
 import os
 import csv
@@ -388,42 +390,64 @@ if "🔬 Diagnosis" in page:
         # ── Grad-CAM ───────────────────────────────────────────
         with st.spinner("Generating explainability heatmap..."):
 
-            try:
-                class_index = class_names.index(label)
+try:
 
-                # Generate Grad-CAM using the new function
-                orig_img, cam_img = generate_gradcam(
-                    model,
-                    image,
-                    class_index
-                )
+class_index = class_names.index(label)
 
-                gradcam_available = True
+Generate Grad-CAM
 
-            except Exception as e:
-                gradcam_available = False
-                cam_img = None
-                orig_img = image.resize((224, 224))
-                # SHOW REAL ERROR (important)
-                st.error("Grad-CAM failed on Streamlit Cloud")
-                st.exception(e)
+orig_img, cam_img = generate_gradcam(
+
+model,
+
+image,
+
+class_index
+
+)
+
+gradcam_available = True
+
+except Exception as e:
+
+gradcam_available = False
+
+cam_img = None
+
+orig_img = image.resize((224, 224))
+
+SHOW REAL ERROR (important)
+
+st.error("Grad-CAM failed on Streamlit Cloud")
+
+st.exception(e)
 
         # ── Severity + Health ──────────────────────────────────
         heatmap = None
 
-        if gradcam_available:
-            try:
-                from utils.gradcam import compute_gradcam
-                from utils.predict import preprocess
+if gradcam_available:
 
-                heatmap = compute_gradcam(
-                    model,
-                    preprocess(image),
-                    class_index
-                )
-            except Exception as e:
-                st.error("Heatmap generation failed")
-                st.exception(e)
+try:
+
+from utils.gradcam import compute_gradcam
+
+from utils.predict import preprocess
+
+heatmap = compute_gradcam(
+
+model,
+
+preprocess(image),
+
+class_index
+
+)
+
+except Exception as e:
+
+st.error("Heatmap generation failed")
+
+st.exception(e)
 
         severity = estimate_severity(label, confidence, heatmap)
         health   = crop_health_index(label, confidence, severity["percentage"])
@@ -761,6 +785,7 @@ if "🔬 Diagnosis" in page:
             unsafe_allow_html=True,
         )
 
+
 # ═══════════════════════════════════════════════════════════════
 # PAGE: CHATBOT  — Guest + Admin
 # ═══════════════════════════════════════════════════════════════
@@ -822,6 +847,7 @@ elif "💬 Chatbot" in page:
         if st.button("Clear 🗑", use_container_width=True):
             st.session_state.chat_history = []
             st.rerun()
+
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE: ANALYTICS  — Admin only
@@ -914,6 +940,7 @@ elif "📊 Analytics" in page:
         disp.columns       = ["Timestamp","Disease","Confidence","Severity","Health Index"]
         st.dataframe(disp.head(20), use_container_width=True)
 
+
 # ═══════════════════════════════════════════════════════════════
 # PAGE: RESEARCH METRICS  — Admin only
 # ═══════════════════════════════════════════════════════════════
@@ -993,6 +1020,7 @@ elif "📐 Research" in page:
     }
     info_rows = [{"Parameter": k, "Value": v} for k, v in model_info.items()]
     st.dataframe(pd.DataFrame(info_rows), use_container_width=True, hide_index=True)
+
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE: ADMIN DASHBOARD  — Admin only
@@ -1078,6 +1106,7 @@ elif "👑 Admin Dashboard" in page:
             mime="text/csv",
             key="admin_dashboard_full_log_download",
         )
+
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE: FULL HISTORY  — Admin only
