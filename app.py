@@ -1,8 +1,7 @@
-app.py — Smart Paddy AI: Main Application
-Role-based access control:
-  - Admin  (dharshu / admin123): all pages
-  - Guest  (no login required):  Diagnosis + Chatbot only
-"""
+# app.py — Smart Paddy AI: Main Application
+# Role-based access control:
+#   - Admin  (dharshu / admin123): all pages
+#   - Guest  (no login required):  Diagnosis + Chatbot
 
 import os
 import csv
@@ -1016,13 +1015,13 @@ elif "👑 Admin Dashboard" in page:
     if log_df.empty:
         st.info("No predictions have been logged yet.")
     else:
-        total_scans  = len(log_df)
+        total       = len(log_df)
         unique_users = log_df["Username"].nunique()
         top_disease  = log_df["Predicted Disease"].value_counts().idxmax()
 
         a1, a2, a3 = st.columns(3)
         for col, val, label_text, color in [
-            (a1, str(total_scans),  "Total Predictions", "#3498db"),
+            (a1, str(total),  "Total Predictions", "#3498db"),
             (a2, str(unique_users), "Unique Users",       "#27ae60"),
             (a3, top_disease,       "Top Disease",        "#e74c3c"),
         ]:
