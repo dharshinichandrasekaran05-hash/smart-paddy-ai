@@ -27,13 +27,15 @@ from utils.logger     import (
     init_db, log_prediction, get_all_predictions,
     get_disease_counts, get_monthly_trends,
 )
-from utils.severity   import estimate_severity, crop_health_index
+from utils.severity   import estimate_severity, crop_health_index, advanced_health_dashboard
 from utils.gradcam    import generate_gradcam, pil_to_bytes
 from utils.pdf_report import generate_pdf_report
 from utils.evaluation import (
     plot_confusion_matrix, compute_classification_report,
     plot_roc_curves, load_training_plots,
 )
+from utils.explainability     import generate_explainability_report
+from utils.treatment_analysis import get_treatment_effectiveness
 
 # ═══════════════════════════════════════════════════════════════
 # APP CONFIG
@@ -406,6 +408,9 @@ if "🔬 Diagnosis" in page:
 
         severity = estimate_severity(label, confidence, heatmap)
         health   = crop_health_index(label, confidence, severity["percentage"])
+        dashboard = advanced_health_dashboard(label, confidence, severity, health)
+        explain   = generate_explainability_report(label, confidence, heatmap, severity["percentage"])
+        treatment_data = get_treatment_effectiveness(label, severity["percentage"], lang)
 
         log_prediction(
             disease=label,
@@ -446,8 +451,17 @@ if "🔬 Diagnosis" in page:
             )
 
             disease_color = {
-                "blast": "#f39c12", "brown_spot": "#e74c3c",
-                "tungro": "#5c6bc0", "normal": "#27ae60", "healthy": "#27ae60",
+                "blast":                     "#f39c12",
+                "brown_spot":                "#e74c3c",
+                "tungro":                    "#5c6bc0",
+                "bacterial_panicle_blight":  "#8e44ad",
+                "bacterial_leaf_blight":     "#d35400",
+                "bacterial_leaf_streak":     "#c0392b",
+                "dead_heart":                "#7f8c8d",
+                "downy_mildew":              "#16a085",
+                "hispa":                     "#2980b9",
+                "normal":                    "#27ae60",
+                "healthy":                   "#27ae60",
             }.get(label.lower(), "#555")
 
             st.markdown(
@@ -560,6 +574,78 @@ if "🔬 Diagnosis" in page:
 
         st.markdown("---")
 
+        # ── Enhanced Crop Health Intelligence Dashboard ─────────
+        st.markdown(
+            "<div class='section-header'>🧠 Enhanced Crop Health Intelligence</div>",
+            unsafe_allow_html=True,
+        )
+        d1, d2, d3, d4 = st.columns(4)
+        with d1:
+            st.markdown(
+                f"<div class='stat-card' style='border-color:{dashboard['risk_color']}'>"
+                f"<h4>Disease Risk</h4>"
+                f"<div class='val' style='color:{dashboard['risk_color']}'>{dashboard['risk_indicator']}</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+        with d2:
+            st.markdown(
+                f"<div class='stat-card' style='border-color:{dashboard['recovery_color']}'>"
+                f"<h4>Recovery Potential</h4>"
+                f"<div class='val' style='color:{dashboard['recovery_color']}'>{dashboard['recovery_potential']}</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+        with d3:
+            st.markdown(
+                f"<div class='stat-card'><h4>AI Confidence Meter</h4>"
+                f"<div class='val'>{dashboard['confidence_meter']}%</div></div>",
+                unsafe_allow_html=True,
+            )
+        with d4:
+            st.markdown(
+                f"<div class='stat-card' style='border-color:{dashboard['leaf_quality_color']}'>"
+                f"<h4>Leaf Quality</h4>"
+                f"<div class='val' style='color:{dashboard['leaf_quality_color']}'>{dashboard['leaf_quality']}</div>"
+                f"</div>", unsafe_allow_html=True,
+            )
+        st.info(f"🧾 {dashboard['ai_summary']}")
+
+        st.markdown("---")
+
+        # ── AI Explainability Report (Grad-CAM based) ───────────
+        st.markdown(
+            "<div class='section-header'>🔍 AI Explainability Report</div>",
+            unsafe_allow_html=True,
+        )
+        if not explain["available"]:
+            st.info(explain["explainability_summary"])
+        else:
+            e1, e2, e3 = st.columns(3)
+            with e1:
+                st.markdown(
+                    f"<div class='stat-card'><h4>Disease-Affected Area</h4>"
+                    f"<div class='val'>{explain['disease_area_pct']}%</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with e2:
+                st.markdown(
+                    f"<div class='stat-card'><h4>Infection Location</h4>"
+                    f"<div class='val' style='font-size:18px'>{explain['infection_location']}</div></div>",
+                    unsafe_allow_html=True,
+                )
+            with e3:
+                st.markdown(
+                    f"<div class='stat-card'><h4>Attention Focus</h4>"
+                    f"<div class='val' style='font-size:18px'>{explain['focus']['focus_label']}</div></div>",
+                    unsafe_allow_html=True,
+                )
+            st.caption(f"Lesion coverage: {explain['lesion_coverage_label']}")
+            st.markdown(f"**Why the model predicted this:** {explain['why_predicted']}")
+            st.markdown(f"**Summary:** {explain['explainability_summary']}")
+            st.markdown(f"**Confidence interpretation:** {explain['confidence_interpretation']}")
+            st.success(f"🌾 **Agricultural interpretation:** {explain['agricultural_interpretation']}")
+
+        st.markdown("---")
+
         # ── Advisory ───────────────────────────────────────────
         st.markdown(
             f"<div class='section-header'>🌱 {L['advisory']}</div>",
@@ -602,6 +688,24 @@ if "🔬 Diagnosis" in page:
                 st.info(f"💧 **நீர்ப்பாசனம்**\n\n{ta_adv['irrigation']}")
             if st.button(f"🔊 {L['hear_tamil']}"):
                 speak_tamil(ta_adv["description"] + " " + " ".join(ta_adv["treatment"]))
+
+        st.markdown("---")
+
+        # ── Treatment Effectiveness ──────────────────────────────
+        st.markdown(
+            "<div class='section-header'>💊 Treatment Effectiveness Analysis</div>",
+            unsafe_allow_html=True,
+        )
+        treat_rows = [{
+            "Option":        t["name"],
+            "Priority":      t["priority"],
+            "Success Rate":  f"{t['success_rate']}%",
+            "Recovery Time": t["recovery_days"],
+            "Cost":          t["cost"],
+            "Eco-Friendly":  t["eco"],
+            "Best Stage":    t["stage"],
+        } for t in treatment_data["treatments"]]
+        st.dataframe(pd.DataFrame(treat_rows), use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
