@@ -8,7 +8,6 @@ Role-based access control:
 import os
 import csv
 import json
-import traceback
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -29,7 +28,7 @@ from utils.logger     import (
     get_disease_counts, get_monthly_trends,
 )
 from utils.severity   import estimate_severity, crop_health_index, advanced_health_dashboard
-from utils.gradcam    import generate_gradcam, pil_to_bytes, GradCAMError
+from utils.gradcam    import generate_gradcam, pil_to_bytes
 from utils.pdf_report import generate_pdf_report
 from utils.evaluation import (
     plot_confusion_matrix, compute_classification_report,
@@ -389,41 +388,44 @@ if "🔬 Diagnosis" in page:
         advisory      = advisory_both[lang]
 
         # ── Grad-CAM ───────────────────────────────────────────
-        # NOTE: previously this caught a bare `Exception` and threw the
-        # real error away, which is why on Streamlit Cloud you only ever
-        # saw "Grad-CAM unavailable for this model layer." with no way
-        # to diagnose it. We now capture the exact exception + full
-        # traceback so it can be surfaced in the UI (see the "Show
-        # technical error" expander below) instead of hidden.
-        gradcam_error_message = None
-        gradcam_error_trace   = None
         with st.spinner("Generating explainability heatmap..."):
+
             try:
-                class_index       = class_names.index(label)
-                orig_img, cam_img = generate_gradcam(model, image, class_index)
+                class_index = class_names.index(label)
+
+                # Generate Grad-CAM
+                orig_img, cam_img = generate_gradcam(
+                    model,
+                    image,
+                    class_index
+                )
+
                 gradcam_available = True
-            except GradCAMError as e:
-                gradcam_available     = False
-                cam_img                = None
-                orig_img               = image.resize((224, 224))
-                gradcam_error_message  = str(e)
-                gradcam_error_trace    = e.trace
+
             except Exception as e:
-                # Any other unexpected error (e.g. class_index lookup) —
-                # still surfaced instead of silently hidden.
-                gradcam_available     = False
-                cam_img                = None
-                orig_img               = image.resize((224, 224))
-                gradcam_error_message  = str(e)
-                gradcam_error_trace    = traceback.format_exc()
+                gradcam_available = False
+                cam_img = None
+                orig_img = image.resize((224, 224))
+                # SHOW REAL ERROR (important)
+                st.error("Grad-CAM failed on Streamlit Cloud")
+                st.exception(e)
 
         # ── Severity + Health ──────────────────────────────────
+        heatmap = None
+
         if gradcam_available:
-            from utils.gradcam import compute_gradcam
-            from utils.predict import preprocess
-            heatmap = compute_gradcam(model, preprocess(image), class_index)
-        else:
-            heatmap = None
+            try:
+                from utils.gradcam import compute_gradcam
+                from utils.predict import preprocess
+
+                heatmap = compute_gradcam(
+                    model,
+                    preprocess(image),
+                    class_index
+                )
+            except Exception as e:
+                st.error("Heatmap generation failed")
+                st.exception(e)
 
         severity = estimate_severity(label, confidence, heatmap)
         health   = crop_health_index(label, confidence, severity["percentage"])
@@ -462,11 +464,6 @@ if "🔬 Diagnosis" in page:
                     )
                 else:
                     st.info("Grad-CAM unavailable for this model layer.")
-                    if gradcam_error_message:
-                        with st.expander("🛠️ Show technical error (for debugging)"):
-                            st.caption(gradcam_error_message)
-                            if gradcam_error_trace:
-                                st.code(gradcam_error_trace, language="text")
 
         with col_res:
             st.markdown(
