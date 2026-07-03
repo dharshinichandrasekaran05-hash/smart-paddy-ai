@@ -4,30 +4,179 @@ Place at: smart_paddy_ai/utils/gradcam.py
 
 Generates heatmaps highlighting infected regions on a paddy leaf image.
 Compatible with EfficientNetB0 (last conv layer = "top_conv").
+
+────────────────────────────────────────────────────────────────
+WHY THIS FILE CHANGED (Streamlit Cloud fix)
+────────────────────────────────────────────────────────────────
+Your model wraps EfficientNetB0 as a single nested layer inside the
+outer model (Sequential/Functional: [efficientnetb0, GAP, BN, Dense...]).
+The original code built the Grad-CAM model like this:
+
+    tf.keras.models.Model(
+        inputs=model.inputs,
+        outputs=[model.get_layer(layer_name).output, model.output],
+    )
+
+For a NESTED conv layer, `model.get_layer(layer_name).output` actually
+resolves to a tensor that belongs to the *submodel's own original call
+context* (the one created when EfficientNetB0(...) was first built),
+not to the outer model's graph — even though it visually "looks"
+connected. Older Keras (2.x, TF <= 2.15) is lenient here and silently
+reuses that tensor. Newer Keras (Keras 3 / TF >= 2.16 — which is what
+Streamlit Cloud will pull if your `requirements.txt` doesn't pin a
+version) is stricter about cross-graph tensor reuse and raises an
+error while building `grad_model`. That's why it worked on localhost
+(older TF) and broke only on Streamlit Cloud (newer TF pulled fresh).
+
+Because the original code caught this with a bare `except Exception:
+gradcam_available = False`, the *real* error was thrown away and you
+only ever saw "Grad-CAM unavailable for this model layer."
+
+Fix: Grad-CAM is now computed via two independent, version-safe
+strategies:
+  Strategy A (direct)        — for conv layers that live directly in
+                                `model.layers` (no nesting).
+  Strategy B (nested 2-stage) — for conv layers nested inside a
+                                submodel (e.g. EfficientNetB0). We
+                                rebuild the forward pass explicitly as
+                                two connected models (backbone ->
+                                features, features -> prediction)
+                                instead of borrowing tensors across
+                                call contexts. This is stable across
+                                TF/Keras versions because every tensor
+                                involved is created fresh, in the same
+                                graph, in the same call.
+
+If both strategies fail, a `GradCAMError` is raised carrying the full
+traceback of every attempt (see `err.trace`), so the UI can show you
+exactly what went wrong instead of a generic message.
 """
+
+from __future__ import annotations
+
+import io
+import traceback
 
 import numpy as np
 import cv2
 import tensorflow as tf
 from PIL import Image
-import io
+
+
+# ─────────────────────── ERROR TYPE ───────────────────────────
+class GradCAMError(Exception):
+    """
+    Raised when Grad-CAM cannot be computed by any strategy.
+    `trace` holds the concatenated tracebacks of every attempt made,
+    so the calling UI can display the real failure reason instead of
+    a generic message.
+    """
+    def __init__(self, message: str, trace: str = ""):
+        super().__init__(message)
+        self.trace = trace
 
 
 # ─────────────────────── LAYER DETECTION ─────────────────────
 def _find_last_conv_layer(model) -> str:
     """
-    Walk layers in reverse and return the first Conv2D name found.
-    Works for EfficientNetB0 and most CNN architectures.
+    Walk layers in reverse and return the name of the first Conv2D
+    layer found. Kept for backward compatibility with any external
+    callers — internally this now just delegates to
+    `_locate_last_conv_layer`, which also tracks the owning submodel
+    (needed for nested EfficientNet backbones).
     """
-    for layer in reversed(model.layers):
+    _, name, _ = _locate_last_conv_layer(model)
+    return name
+
+
+def _locate_last_conv_layer(model):
+    """
+    Recursively search `model` (and any nested Keras model/layer, e.g.
+    an EfficientNetB0 backbone wrapped as a single layer) for the last
+    Conv2D layer.
+
+    Returns
+    -------
+    (owner, layer_name, owner_index)
+        owner       : the Keras Model/Layer that directly *contains*
+                       the Conv2D layer. Equal to `model` itself if
+                       the conv layer isn't nested; otherwise the
+                       nested submodel (e.g. the EfficientNetB0
+                       backbone object).
+        layer_name  : name of the Conv2D layer.
+        owner_index : index of `owner` inside `model.layers`, or
+                       `None` if `owner is model` (not nested). Used
+                       to know which layers come *after* the backbone
+                       for two-stage reconstruction.
+    """
+    for rev_idx, layer in enumerate(reversed(model.layers)):
+        real_idx = len(model.layers) - 1 - rev_idx
         if isinstance(layer, tf.keras.layers.Conv2D):
-            return layer.name
-        # EfficientNet wraps in a sub-model
-        if hasattr(layer, "layers"):
-            for sub in reversed(layer.layers):
+            return model, layer.name, None
+        sub_layers = getattr(layer, "layers", None)
+        if sub_layers:
+            for sub in reversed(sub_layers):
                 if isinstance(sub, tf.keras.layers.Conv2D):
-                    return sub.name
-    raise ValueError("No Conv2D layer found in model.")
+                    return layer, sub.name, real_idx
+    raise ValueError("No Conv2D layer found in model (including nested submodels).")
+
+
+# ─────────────────────── GRAD-CAM STRATEGIES ──────────────────
+def _gradcam_direct(model, img_array, class_index, layer_name):
+    """
+    Strategy A — target Conv2D layer sits directly in `model.layers`
+    (no nesting). Every tensor belongs to the same functional graph,
+    so this simple reconstruction is safe across TF/Keras versions.
+    """
+    grad_model = tf.keras.models.Model(
+        inputs=model.inputs,
+        outputs=[model.get_layer(layer_name).output, model.output],
+    )
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(img_array, training=False)
+        loss = predictions[:, class_index]
+    grads = tape.gradient(loss, conv_outputs)
+    return conv_outputs, grads
+
+
+def _gradcam_nested_two_stage(model, img_array, class_index, owner, layer_name, owner_index):
+    """
+    Strategy B — target Conv2D layer lives inside a nested submodel
+    (e.g. EfficientNetB0 used as a single "layer" inside your outer
+    model). Rebuilds the forward pass explicitly as two connected
+    stages so no tensor is borrowed from a foreign call context:
+
+        1. feature_extractor : raw image  -> conv activations
+        2. classifier_model  : activations -> final prediction
+                                (replays every layer that originally
+                                came AFTER the backbone in `model`,
+                                e.g. GAP -> BN -> Dense -> Dropout ->
+                                Dense -> Softmax)
+    """
+    feature_extractor = tf.keras.models.Model(
+        inputs=owner.input,
+        outputs=owner.get_layer(layer_name).output,
+    )
+
+    # Everything in the outer model that runs AFTER the backbone.
+    remaining_layers = model.layers[owner_index + 1:]
+    if not remaining_layers:
+        raise ValueError("No layers found after the backbone to rebuild the classifier head.")
+
+    conv_shape = feature_extractor.output_shape[1:]
+    classifier_input = tf.keras.Input(shape=conv_shape)
+    x = classifier_input
+    for layer in remaining_layers:
+        x = layer(x)
+    classifier_model = tf.keras.models.Model(classifier_input, x)
+
+    with tf.GradientTape() as tape:
+        conv_outputs = feature_extractor(img_array, training=False)
+        tape.watch(conv_outputs)
+        predictions = classifier_model(conv_outputs, training=False)
+        loss = predictions[:, class_index]
+    grads = tape.gradient(loss, conv_outputs)
+    return conv_outputs, grads
 
 
 # ─────────────────────── GRAD-CAM CORE ───────────────────────
@@ -40,40 +189,93 @@ def compute_gradcam(
     """
     Compute Grad-CAM heatmap for a given class index.
 
+    Tries multiple construction strategies so the result is robust
+    across TensorFlow/Keras versions and works whether the target
+    conv layer is nested (EfficientNet backbone) or not. This is a
+    drop-in replacement — same signature, same return type as before.
+
     Parameters
     ----------
     model       : loaded Keras model
     img_array   : preprocessed image (1, 224, 224, 3) float32
     class_index : predicted class index
-    layer_name  : target conv layer (auto-detected if None)
+    layer_name  : optional — pin a specific target conv layer name.
+                  Left as None (recommended) to auto-detect.
 
     Returns
     -------
-    heatmap : np.ndarray (224, 224) normalised 0–1
-    """
-    if layer_name is None:
-        layer_name = _find_last_conv_layer(model)
+    heatmap : np.ndarray (H, W) normalised 0-1
 
-    # Build gradient model
-    grad_model = tf.keras.models.Model(
-        inputs=model.inputs,
-        outputs=[
-            model.get_layer(layer_name).output,
-            model.output,
-        ],
+    Raises
+    ------
+    GradCAMError — if every strategy fails. `err.trace` contains the
+    full tracebacks of every attempt, for debugging.
+    """
+    attempts_trace = []
+
+    # 1. Locate the layer (and, if nested, its owning submodel).
+    try:
+        if layer_name is not None:
+            owner, found_name, owner_index = model, layer_name, None
+            # Still figure out real ownership so Strategy B can work
+            # if Strategy A fails on this pinned name.
+            try:
+                _, _, real_owner_index = _locate_last_conv_layer(model)
+                if real_owner_index is not None:
+                    owner_index = real_owner_index
+                    owner = model.layers[real_owner_index]
+            except Exception:
+                pass
+        else:
+            owner, found_name, owner_index = _locate_last_conv_layer(model)
+    except Exception:
+        raise GradCAMError(
+            "Could not locate a Conv2D layer in the model.",
+            trace=traceback.format_exc(),
+        )
+
+    # 2. Try the direct (non-nested) strategy first — cheapest and
+    #    works whenever the conv layer isn't hidden inside a submodel.
+    try:
+        conv_outputs, grads = _gradcam_direct(model, img_array, class_index, found_name)
+        return _finalize_heatmap(conv_outputs, grads)
+    except Exception:
+        attempts_trace.append("Strategy A (direct layer access) failed:\n" + traceback.format_exc())
+
+    # 3. Fall back to the two-stage nested strategy (handles the
+    #    EfficientNetB0-wrapped-as-a-layer case that breaks across
+    #    TF/Keras versions).
+    try:
+        if owner_index is None:
+            raise ValueError(
+                "Conv layer is not nested inside a submodel; "
+                "Strategy A should have succeeded — see its error above."
+            )
+        conv_outputs, grads = _gradcam_nested_two_stage(
+            model, img_array, class_index, owner, found_name, owner_index
+        )
+        return _finalize_heatmap(conv_outputs, grads)
+    except Exception:
+        attempts_trace.append("Strategy B (nested two-stage rebuild) failed:\n" + traceback.format_exc())
+
+    # 4. Everything failed — surface the real reason instead of hiding it.
+    raise GradCAMError(
+        "Grad-CAM could not be computed with any available strategy.",
+        trace="\n\n".join(attempts_trace),
     )
 
-    with tf.GradientTape() as tape:
-        conv_outputs, predictions = grad_model(img_array, training=False)
-        loss = predictions[:, class_index]
 
-    # Gradient of class score w.r.t. conv feature maps
-    grads       = tape.gradient(loss, conv_outputs)            # (1, H, W, C)
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))       # (C,)
+def _finalize_heatmap(conv_outputs, grads) -> np.ndarray:
+    if grads is None:
+        raise GradCAMError(
+            "Gradient computation returned None — the conv output and "
+            "model output are disconnected in the graph."
+        )
 
-    conv_outputs = conv_outputs[0]                             # (H, W, C)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))         # (C,)
+    conv_outputs = conv_outputs[0]                                 # (H, W, C)
     heatmap      = conv_outputs @ pooled_grads[..., tf.newaxis]
-    heatmap      = tf.squeeze(heatmap)                         # (H, W)
+    heatmap      = tf.squeeze(heatmap)                             # (H, W)
 
     # ReLU + normalise
     heatmap = tf.nn.relu(heatmap).numpy()
@@ -126,6 +328,12 @@ def generate_gradcam(
     Returns
     -------
     (original_image, overlaid_image) — both as PIL Images (224×224)
+
+    Raises
+    ------
+    GradCAMError — propagated from `compute_gradcam` if every strategy
+    fails, so the caller (app.py) can show the real diagnostic instead
+    of a generic message.
     """
     from utils.predict import preprocess   # avoid circular import
 
