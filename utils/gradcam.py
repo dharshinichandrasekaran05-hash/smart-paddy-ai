@@ -23,60 +23,135 @@ class GradCAMError(Exception):
 
 
 # ─────────────────────── LAYER DETECTION ─────────────────────
+def _is_conv2d(layer) -> bool:
+    """
+    Version-tolerant Conv2D check.
+
+    Prefers isinstance, but falls back to matching the class name.
+    This matters because a model trained with one Keras/TF version
+    and reloaded on a host with a *different* installed version
+    (very common on Streamlit Cloud, where the deployed
+    tensorflow==X.Y.Z may differ from whatever was used to train
+    and export the .h5/.keras file) can end up with layer objects
+    whose isinstance check against tf.keras.layers.Conv2D silently
+    fails even though the layer is functionally a Conv2D.
+    """
+    if isinstance(layer, tf.keras.layers.Conv2D):
+        return True
+    return type(layer).__name__ == "Conv2D"
+
+
+def _iter_conv_candidates(model, _owner=None, _depth=0, _max_depth=8):
+    """
+    Recursively walk `model` and yield (owner, conv_layer) for every
+    Conv2D-like layer found at ANY nesting depth — not just one level.
+
+    A plain EfficientNet/MobileNet/ResNet backbone wrapped as a single
+    layer is one level of nesting, but some architectures (e.g. a
+    backbone wrapped inside a custom feature-extractor layer, or a
+    model reloaded from SavedModel format) can be nested two or more
+    levels deep. The previous version of this function only checked
+    one level down, which is why "Could not locate a Conv2D layer"
+    was being raised even though the model clearly has Conv2D layers
+    somewhere inside it.
+
+    `owner` in the yielded tuple is always the *immediate* Keras
+    layer/model that directly contains the Conv2D (used later to
+    look up its index for Strategy B).
+    """
+    owner = _owner if _owner is not None else model
+    layers = getattr(model, "layers", None) or []
+    for layer in layers:
+        if _is_conv2d(layer):
+            yield owner, layer
+        sub_layers = getattr(layer, "layers", None)
+        if sub_layers and _depth < _max_depth:
+            yield from _iter_conv_candidates(layer, _owner=layer, _depth=_depth + 1)
+
+
+def _find_layer_by_name(model, name, _depth=0, _max_depth=8):
+    """
+    Recursively find a layer by name anywhere inside `model`,
+    including inside nested submodels. Unlike `model.get_layer(name)`
+    (which only searches the top-level layer list), this will find a
+    layer buried inside a backbone at any depth.
+    """
+    for layer in getattr(model, "layers", None) or []:
+        if layer.name == name:
+            return layer
+        sub_layers = getattr(layer, "layers", None)
+        if sub_layers and _depth < _max_depth:
+            found = _find_layer_by_name(layer, name, _depth=_depth + 1, _max_depth=_max_depth)
+            if found is not None:
+                return found
+    return None
+
+
 def _find_last_conv_layer(model) -> str:
-    """
-    Walk layers in reverse and return the name of the first Conv2D
-    layer found. Kept for backward compatibility with any external
-    callers — internally this now just delegates to
-    `_locate_last_conv_layer`, which also tracks the owning submodel
-    (needed for nested EfficientNet backbones).
-    """
+    """Kept for backward compatibility with any external callers."""
     _, name, _ = _locate_last_conv_layer(model)
     return name
 
 
 def _locate_last_conv_layer(model):
     """
-    Recursively search `model` (and any nested Keras model/layer, e.g.
-    an EfficientNetB0 backbone wrapped as a single layer) for the last
-    Conv2D layer.
+    Find the last (deepest-in-forward-order) Conv2D layer anywhere in
+    `model`, including inside nested submodels at any depth.
 
     Returns
     -------
     (owner, layer_name, owner_index)
         owner       : the Keras Model/Layer that directly *contains*
                        the Conv2D layer. Equal to `model` itself if
-                       the conv layer isn't nested; otherwise the
-                       nested submodel (e.g. the EfficientNetB0
-                       backbone object).
+                       the conv layer isn't nested.
         layer_name  : name of the Conv2D layer.
-        owner_index : index of `owner` inside `model.layers`, or
-                       `None` if `owner is model` (not nested). Used
-                       to know which layers come *after* the backbone
-                       for two-stage reconstruction.
+        owner_index : index of `owner` inside `model.layers` (top
+                       level only), or `None` if `owner is model` or
+                       if `owner` is nested more than one level deep
+                       (in which case Strategy B is skipped and we
+                       rely on Strategy A, which now works at any
+                       depth via direct tensor connection).
     """
-    for rev_idx, layer in enumerate(reversed(model.layers)):
-        real_idx = len(model.layers) - 1 - rev_idx
-        if isinstance(layer, tf.keras.layers.Conv2D):
-            return model, layer.name, None
-        sub_layers = getattr(layer, "layers", None)
-        if sub_layers:
-            for sub in reversed(sub_layers):
-                if isinstance(sub, tf.keras.layers.Conv2D):
-                    return layer, sub.name, real_idx
-    raise ValueError("No Conv2D layer found in model (including nested submodels).")
+    candidates = list(_iter_conv_candidates(model))
+    if not candidates:
+        raise ValueError("No Conv2D layer found in model (including nested submodels).")
+
+    owner, layer = candidates[-1]
+
+    if owner is model:
+        return model, layer.name, None
+
+    try:
+        owner_index = model.layers.index(owner)
+    except ValueError:
+        owner_index = None  # owner is nested more than one level deep
+
+    return owner, layer.name, owner_index
 
 
 # ─────────────────────── GRAD-CAM STRATEGIES ──────────────────
 def _gradcam_direct(model, img_array, class_index, layer_name):
     """
-    Strategy A — target Conv2D layer sits directly in `model.layers`
-    (no nesting). Every tensor belongs to the same functional graph,
-    so this simple reconstruction is safe across TF/Keras versions.
+    Strategy A — build the grad model by connecting the target conv
+    layer's output tensor directly to `model.inputs`.
+
+    This works regardless of nesting depth as long as the backbone
+    was invoked functionally when the outer model was built (i.e.
+    `base_model(some_input_tensor)`), because the Keras functional
+    API tracks the *entire* computation graph, including tensors
+    produced deep inside nested sub-models. The previous version of
+    this function used `model.get_layer(layer_name)`, which only
+    searches the *top-level* layer list and raises immediately for
+    any nested layer — that was the real reason nested backbones
+    were falling through to Strategy B (or failing entirely).
     """
+    target_layer = _find_layer_by_name(model, layer_name)
+    if target_layer is None:
+        raise ValueError(f"Layer '{layer_name}' not found in model (including nested submodels).")
+
     grad_model = tf.keras.models.Model(
         inputs=model.inputs,
-        outputs=[model.get_layer(layer_name).output, model.output],
+        outputs=[target_layer.output, model.output],
     )
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_array, training=False)
@@ -87,25 +162,31 @@ def _gradcam_direct(model, img_array, class_index, layer_name):
 
 def _gradcam_nested_two_stage(model, img_array, class_index, owner, layer_name, owner_index):
     """
-    Strategy B — target Conv2D layer lives inside a nested submodel
-    (e.g. EfficientNetB0 used as a single "layer" inside your outer
-    model). Rebuilds the forward pass explicitly as two connected
-    stages so no tensor is borrowed from a foreign call context:
+    Strategy B — fallback for the rare case where the target Conv2D
+    layer lives inside a submodel that is NOT part of the same
+    functional graph as `model.inputs` (e.g. built with Sequential
+    rather than Functional API, so tensor identity is lost). Rebuilds
+    the forward pass explicitly as two connected stages:
 
         1. feature_extractor : raw image  -> conv activations
         2. classifier_model  : activations -> final prediction
                                 (replays every layer that originally
-                                came AFTER the backbone in `model`,
-                                e.g. GAP -> BN -> Dense -> Dropout ->
-                                Dense -> Softmax)
+                                came AFTER the backbone in `model`)
+
+    Only usable when `owner_index` is known, i.e. the backbone is
+    exactly one level deep. Deeper nesting relies on Strategy A.
     """
-    # Build feature extractor
+    if owner_index is None:
+        raise ValueError(
+            "owner_index unknown (backbone nested more than one level deep); "
+            "Strategy B requires a top-level backbone layer."
+        )
+
     feature_extractor = tf.keras.models.Model(
         inputs=owner.input,
         outputs=owner.get_layer(layer_name).output,
     )
 
-    # Build classifier head with remaining layers
     remaining_layers = model.layers[owner_index + 1:]
     if not remaining_layers:
         raise ValueError("No layers found after the backbone to rebuild the classifier head.")
@@ -138,13 +219,14 @@ def compute_gradcam(
 
     Tries multiple construction strategies so the result is robust
     across TensorFlow/Keras versions and works whether the target
-    conv layer is nested (EfficientNet backbone) or not. This is a
-    drop-in replacement — same signature, same return type as before.
+    conv layer is nested (e.g. an EfficientNet backbone) or not, and
+    regardless of nesting depth. Drop-in replacement — same
+    signature, same return type as before.
 
     Parameters
     ----------
     model       : loaded Keras model
-    img_array   : preprocessed image (1, 224, 224, 3) float32
+    img_array   : preprocessed image (1, H, W, 3) float32
     class_index : predicted class index
     layer_name  : optional — pin a specific target conv layer name.
                   Left as None (recommended) to auto-detect.
@@ -160,11 +242,10 @@ def compute_gradcam(
     """
     attempts_trace = []
 
-    # 1. Locate the layer (and, if nested, its owning submodel).
+    # 1. Locate the layer (and, if nested exactly one level, its owner).
     try:
         if layer_name is not None:
             owner, found_name, owner_index = model, layer_name, None
-            # Try to get the owner of the layer
             try:
                 _, _, real_owner_index = _locate_last_conv_layer(model)
                 if real_owner_index is not None:
@@ -180,20 +261,15 @@ def compute_gradcam(
             trace=traceback.format_exc(),
         )
 
-    # 2. Strategy A: directly access layer if possible
+    # 2. Strategy A: direct tensor connection (now works at any depth)
     try:
         conv_outputs, grads = _gradcam_direct(model, img_array, class_index, found_name)
         return _finalize_heatmap(conv_outputs, grads)
     except Exception:
         attempts_trace.append("Strategy A (direct layer access) failed:\n" + traceback.format_exc())
 
-    # 3. Strategy B: nested two-stage rebuild
+    # 3. Strategy B: nested two-stage rebuild (only if backbone is one level deep)
     try:
-        if owner_index is None:
-            raise ValueError(
-                "Conv layer is not nested inside a submodel; "
-                "Strategy A should have succeeded — see its error above."
-            )
         conv_outputs, grads = _gradcam_nested_two_stage(
             model, img_array, class_index, owner, found_name, owner_index
         )
