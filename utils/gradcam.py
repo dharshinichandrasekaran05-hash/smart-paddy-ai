@@ -1,57 +1,4 @@
-"""
-utils/gradcam.py — Smart Paddy AI: Grad-CAM Explainability
-Place at: smart_paddy_ai/utils/gradcam.py
-
-Generates heatmaps highlighting infected regions on a paddy leaf image.
-Compatible with EfficientNetB0 (last conv layer = "top_conv").
-
-────────────────────────────────────────────────────────────────
-WHY THIS FILE CHANGED (Streamlit Cloud fix)
-────────────────────────────────────────────────────────────────
-Your model wraps EfficientNetB0 as a single nested layer inside the
-outer model (Sequential/Functional: [efficientnetb0, GAP, BN, Dense...]).
-The original code built the Grad-CAM model like this:
-
-    tf.keras.models.Model(
-        inputs=model.inputs,
-        outputs=[model.get_layer(layer_name).output, model.output],
-    )
-
-For a NESTED conv layer, `model.get_layer(layer_name).output` actually
-resolves to a tensor that belongs to the *submodel's own original call
-context* (the one created when EfficientNetB0(...) was first built),
-not to the outer model's graph — even though it visually "looks"
-connected. Older Keras (2.x, TF <= 2.15) is lenient here and silently
-reuses that tensor. Newer Keras (Keras 3 / TF >= 2.16 — which is what
-Streamlit Cloud will pull if your `requirements.txt` doesn't pin a
-version) is stricter about cross-graph tensor reuse and raises an
-error while building `grad_model`. That's why it worked on localhost
-(older TF) and broke only on Streamlit Cloud (newer TF pulled fresh).
-
-Because the original code caught this with a bare `except Exception:
-gradcam_available = False`, the *real* error was thrown away and you
-only ever saw "Grad-CAM unavailable for this model layer."
-
-Fix: Grad-CAM is now computed via two independent, version-safe
-strategies:
-  Strategy A (direct)        — for conv layers that live directly in
-                                `model.layers` (no nesting).
-  Strategy B (nested 2-stage) — for conv layers nested inside a
-                                submodel (e.g. EfficientNetB0). We
-                                rebuild the forward pass explicitly as
-                                two connected models (backbone ->
-                                features, features -> prediction)
-                                instead of borrowing tensors across
-                                call contexts. This is stable across
-                                TF/Keras versions because every tensor
-                                involved is created fresh, in the same
-                                graph, in the same call.
-
-If both strategies fail, a `GradCAMError` is raised carrying the full
-traceback of every attempt (see `err.trace`), so the UI can show you
-exactly what went wrong instead of a generic message.
-"""
-
+```python
 from __future__ import annotations
 
 import io
@@ -153,12 +100,13 @@ def _gradcam_nested_two_stage(model, img_array, class_index, owner, layer_name, 
                                 e.g. GAP -> BN -> Dense -> Dropout ->
                                 Dense -> Softmax)
     """
+    # Build feature extractor
     feature_extractor = tf.keras.models.Model(
         inputs=owner.input,
         outputs=owner.get_layer(layer_name).output,
     )
 
-    # Everything in the outer model that runs AFTER the backbone.
+    # Build classifier head with remaining layers
     remaining_layers = model.layers[owner_index + 1:]
     if not remaining_layers:
         raise ValueError("No layers found after the backbone to rebuild the classifier head.")
@@ -217,8 +165,7 @@ def compute_gradcam(
     try:
         if layer_name is not None:
             owner, found_name, owner_index = model, layer_name, None
-            # Still figure out real ownership so Strategy B can work
-            # if Strategy A fails on this pinned name.
+            # Try to get the owner of the layer
             try:
                 _, _, real_owner_index = _locate_last_conv_layer(model)
                 if real_owner_index is not None:
@@ -234,17 +181,14 @@ def compute_gradcam(
             trace=traceback.format_exc(),
         )
 
-    # 2. Try the direct (non-nested) strategy first — cheapest and
-    #    works whenever the conv layer isn't hidden inside a submodel.
+    # 2. Strategy A: directly access layer if possible
     try:
         conv_outputs, grads = _gradcam_direct(model, img_array, class_index, found_name)
         return _finalize_heatmap(conv_outputs, grads)
     except Exception:
         attempts_trace.append("Strategy A (direct layer access) failed:\n" + traceback.format_exc())
 
-    # 3. Fall back to the two-stage nested strategy (handles the
-    #    EfficientNetB0-wrapped-as-a-layer case that breaks across
-    #    TF/Keras versions).
+    # 3. Strategy B: nested two-stage rebuild
     try:
         if owner_index is None:
             raise ValueError(
@@ -258,96 +202,9 @@ def compute_gradcam(
     except Exception:
         attempts_trace.append("Strategy B (nested two-stage rebuild) failed:\n" + traceback.format_exc())
 
-    # 4. Everything failed — surface the real reason instead of hiding it.
+    # 4. All strategies failed
     raise GradCAMError(
         "Grad-CAM could not be computed with any available strategy.",
         trace="\n\n".join(attempts_trace),
     )
-
-
-def _finalize_heatmap(conv_outputs, grads) -> np.ndarray:
-    if grads is None:
-        raise GradCAMError(
-            "Gradient computation returned None — the conv output and "
-            "model output are disconnected in the graph."
-        )
-
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))         # (C,)
-    conv_outputs = conv_outputs[0]                                 # (H, W, C)
-    heatmap      = conv_outputs @ pooled_grads[..., tf.newaxis]
-    heatmap      = tf.squeeze(heatmap)                             # (H, W)
-
-    # ReLU + normalise
-    heatmap = tf.nn.relu(heatmap).numpy()
-    if heatmap.max() > 0:
-        heatmap = heatmap / heatmap.max()
-
-    return heatmap.astype(np.float32)
-
-
-# ─────────────────────── OVERLAY ─────────────────────────────
-def overlay_heatmap(
-    original_image: Image.Image,
-    heatmap: np.ndarray,
-    alpha: float = 0.45,
-    colormap: int = cv2.COLORMAP_JET,
-) -> Image.Image:
-    """
-    Overlay a Grad-CAM heatmap onto the original PIL image.
-
-    Returns
-    -------
-    PIL Image with the coloured heatmap blended onto the original.
-    """
-    orig_w, orig_h = original_image.size
-    orig_rgb = np.array(original_image.convert("RGB"))
-
-    # Resize heatmap to match original image
-    heatmap_resized = cv2.resize(heatmap, (orig_w, orig_h))
-
-    # Convert heatmap to uint8 colour map
-    heatmap_uint8   = np.uint8(255 * heatmap_resized)
-    heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
-    heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
-
-    # Blend
-    overlay = cv2.addWeighted(orig_rgb, 1 - alpha, heatmap_colored, alpha, 0)
-
-    return Image.fromarray(overlay)
-
-
-# ─────────────────────── CONVENIENCE ─────────────────────────
-def generate_gradcam(
-    model,
-    pil_image: Image.Image,
-    class_index: int,
-) -> tuple[Image.Image, Image.Image]:
-    """
-    Full pipeline: preprocess → Grad-CAM → overlay.
-
-    Returns
-    -------
-    (original_image, overlaid_image) — both as PIL Images (224×224)
-
-    Raises
-    ------
-    GradCAMError — propagated from `compute_gradcam` if every strategy
-    fails, so the caller (app.py) can show the real diagnostic instead
-    of a generic message.
-    """
-    from utils.predict import preprocess   # avoid circular import
-
-    img_array = preprocess(pil_image)
-
-    heatmap  = compute_gradcam(model, img_array, class_index)
-    resized  = pil_image.resize((224, 224), Image.LANCZOS)
-    overlaid = overlay_heatmap(resized, heatmap)
-
-    return resized, overlaid
-
-
-def pil_to_bytes(img: Image.Image, fmt: str = "PNG") -> bytes:
-    """Convert a PIL Image to raw bytes for Streamlit download."""
-    buf = io.BytesIO()
-    img.save(buf, format=fmt)
-    return buf.getvalue()
+```
