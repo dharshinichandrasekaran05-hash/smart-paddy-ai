@@ -1,9 +1,7 @@
-"""
-app.py — Smart Paddy AI: Main Application
-Role-based access control:
-  - Admin  (dharshu / admin123): all pages
-  - Guest  (no login required):  Diagnosis + Chatbot only
-"""
+# app.py — Smart Paddy AI: Main Application
+# Role-based access control:
+#   - Admin  (dharshu / admin123): all pages
+#   - Guest  (no login required):  Diagnosis + Chatbot only
 
 import os
 import csv
@@ -393,7 +391,7 @@ if "🔬 Diagnosis" in page:
             try:
                 class_index = class_names.index(label)
 
-                # Generate Grad-CAM
+                # Generate Grad-CAM using the new function
                 orig_img, cam_img = generate_gradcam(
                     model,
                     image,
@@ -763,7 +761,6 @@ if "🔬 Diagnosis" in page:
             unsafe_allow_html=True,
         )
 
-
 # ═══════════════════════════════════════════════════════════════
 # PAGE: CHATBOT  — Guest + Admin
 # ═══════════════════════════════════════════════════════════════
@@ -825,7 +822,6 @@ elif "💬 Chatbot" in page:
         if st.button("Clear 🗑", use_container_width=True):
             st.session_state.chat_history = []
             st.rerun()
-
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE: ANALYTICS  — Admin only
@@ -918,7 +914,6 @@ elif "📊 Analytics" in page:
         disp.columns       = ["Timestamp","Disease","Confidence","Severity","Health Index"]
         st.dataframe(disp.head(20), use_container_width=True)
 
-
 # ═══════════════════════════════════════════════════════════════
 # PAGE: RESEARCH METRICS  — Admin only
 # ═══════════════════════════════════════════════════════════════
@@ -998,7 +993,6 @@ elif "📐 Research" in page:
     }
     info_rows = [{"Parameter": k, "Value": v} for k, v in model_info.items()]
     st.dataframe(pd.DataFrame(info_rows), use_container_width=True, hide_index=True)
-
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE: ADMIN DASHBOARD  — Admin only
@@ -1084,7 +1078,6 @@ elif "👑 Admin Dashboard" in page:
             mime="text/csv",
             key="admin_dashboard_full_log_download",
         )
-
 
 # ═══════════════════════════════════════════════════════════════
 # PAGE: FULL HISTORY  — Admin only
