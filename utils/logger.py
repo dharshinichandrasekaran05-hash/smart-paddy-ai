@@ -48,7 +48,8 @@ def init_db() -> None:
                 severity    REAL    DEFAULT 0,
                 health_idx  REAL    DEFAULT 0,
                 location    TEXT    DEFAULT '',
-                image_path  TEXT    DEFAULT ''
+                image_path  TEXT    DEFAULT '',
+                farmer_name TEXT    DEFAULT 'Guest'
             );
 
             CREATE TABLE IF NOT EXISTS events (
@@ -58,6 +59,16 @@ def init_db() -> None:
                 data        TEXT    NOT NULL
             );
         """)
+        # ── Backward-compat: add farmer_name column if the DB
+        #    already existed before this column was introduced ──
+        existing_cols = [
+            row["name"] for row in
+            conn.execute("PRAGMA table_info(predictions)").fetchall()
+        ]
+        if "farmer_name" not in existing_cols:
+            conn.execute(
+                "ALTER TABLE predictions ADD COLUMN farmer_name TEXT DEFAULT 'Guest'"
+            )
 
 
 # ─────────────────────── LOG FUNCTIONS ────────────────────────
@@ -99,32 +110,49 @@ def log_event(event_type: str, data: dict) -> None:
 
 
 def log_prediction(
-    disease:    str,
-    confidence: float,
-    severity:   float = 0.0,
-    health_idx: float = 0.0,
-    location:   str   = "",
+    disease:     str,
+    confidence:  float,
+    severity:    float = 0.0,
+    health_idx:  float = 0.0,
+    location:    str   = "",
+    farmer_name: str   = "Guest",
 ) -> None:
     """
     Log a disease prediction to SQLite predictions table.
     Also calls log_event for JSON compatibility.
+
+    NOTE: keyword names here (disease, confidence, severity, health_idx,
+    location, farmer_name) must match whatever app.py passes in. If you
+    change this signature, update the call in app.py's Diagnosis page too
+    (and vice versa) — a mismatch here is what raises
+    "TypeError: log_prediction() got an unexpected keyword argument ...".
     """
     ts = str(datetime.datetime.now())
+
+    # Defensive casts — guarantees plain python types reach sqlite,
+    # regardless of what upstream code (numpy, pandas, etc.) hands us.
+    disease     = str(disease)
+    confidence  = float(confidence)
+    severity    = float(severity) if severity is not None else 0.0
+    health_idx  = float(health_idx) if health_idx is not None else 0.0
+    location    = str(location) if location is not None else ""
+    farmer_name = str(farmer_name) if farmer_name else "Guest"
 
     init_db()
     with _get_conn() as conn:
         conn.execute(
             """INSERT INTO predictions
-               (timestamp, disease, confidence, severity, health_idx, location)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (ts, disease, confidence, severity, health_idx, location)
+               (timestamp, disease, confidence, severity, health_idx, location, farmer_name)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (ts, disease, confidence, severity, health_idx, location, farmer_name)
         )
 
     log_event("prediction", {
-        "disease":    disease,
-        "confidence": confidence,
-        "severity":   severity,
-        "health_idx": health_idx,
+        "disease":     disease,
+        "confidence":  confidence,
+        "severity":    severity,
+        "health_idx":  health_idx,
+        "farmer_name": farmer_name,
     })
 
 
