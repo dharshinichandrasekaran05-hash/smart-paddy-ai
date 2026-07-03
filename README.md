@@ -1,75 +1,69 @@
 # 🌾 Smart Paddy AI
-## Rice Disease Detection & Agricultural Decision Support System
 
-### Overview
-Smart Paddy AI is a web-based application developed for the identification of rice leaf diseases using deep learning techniques. The system assists farmers and agricultural stakeholders by detecting diseases from uploaded leaf images and providing useful recommendations for crop management. The platform supports role-based access, allowing general users to run diagnoses while administrators get full visibility into system-wide usage and analytics.
+An AI-powered Explainable Paddy Disease Detection and Smart Advisory System developed using Deep Learning, Computer Vision, and Explainable AI.
 
-### Key Features
-* Rice disease detection using EfficientNetB0 Transfer Learning
-* Detection of 10 rice disease categories
-* Disease severity estimation (Mild, Moderate, Severe) with risk-level flags (Low / Medium / High)
-* Crop Health Index calculation
-* Grad-CAM visual explanations for model predictions
-* Downloadable PDF diagnostic reports
-* English and Tamil language support
-* Voice-based output
-* Role-based access control — Guest and Admin views
-* Per-prediction logging tied to a farmer name (CSV + SQLite)
-* Analytics dashboard with disease distribution, monthly trends, and severity charts
-* Admin Dashboard with system-wide usage stats and full prediction history
-* Filterable, downloadable full history log (by user and by disease)
-* Research Metrics page with confusion matrix, classification report, and training curves
+## Features
 
-### Disease Classes
-1. Bacterial Leaf Blight
-2. Bacterial Leaf Streak
-3. Bacterial Panicle Blight
-4. Blast
-5. Brown Spot
-6. Dead Heart
-7. Downy Mildew
-8. Hispa
-9. Healthy Leaf
-10. Tungro
+- 🌿 Paddy leaf disease detection
+- 🧠 CNN-based image classification
+- 🔥 Grad-CAM Explainable AI visualization
+- 📊 Disease severity estimation
+- ❤️ Crop Health Index calculation
+- 📍 Infection location detection
+- 🎯 AI attention analysis
+- 🌱 Recovery potential prediction
+- 🌍 English & Tamil agricultural advisory
+- 💬 AI farming chatbot
+- 📄 Downloadable PDF reports
+- ☁️ Deployed on Streamlit Cloud
 
-### User Roles & Access
+## Technologies
 
-| Page                  | Guest | Admin |
-|------------------------|:-----:|:-----:|
-| 🔬 Diagnosis           | ✅    | ✅    |
-| 💬 Chatbot             | ✅    | ✅    |
-| 📊 Analytics           | ❌    | ✅    |
-| 📐 Research Metrics    | ❌    | ✅    |
-| 👑 Admin Dashboard     | ❌    | ✅    |
-| 📋 Full History        | ❌    | ✅    |
+- Python
+- Streamlit
+- TensorFlow
+- Keras
+- OpenCV
+- NumPy
+- Pillow
+- Plotly
+- ReportLab
 
-* **Guests** can use Diagnosis and Chatbot without any login.
-* **Admin** logs in from the sidebar (single admin account) to unlock Analytics, Research Metrics, Admin Dashboard, and Full History.
-* Every prediction is recorded against a name: the **Farmer Name** entered in the sidebar takes priority, falling back to the session username, and finally to `"Guest"` if neither is set — so admin-side history reflects real farmer names whenever they're provided.
+## AI Techniques
 
-### Model Information
-The disease classification model is built using EfficientNetB0 with transfer learning. Image preprocessing and data augmentation techniques were applied to improve model performance. The model was trained and fine-tuned to classify rice leaf diseases effectively. A threshold-based confidence adjustment is applied at inference time to improve Downy Mildew detection reliability without retraining.
+- Convolutional Neural Network (CNN)
+- Grad-CAM Explainable AI
+- Computer Vision
+- Softmax Confidence Estimation
+- Rule-Based Agricultural Expert System
 
-### Technology Stack
-* Python
-* TensorFlow & Keras
-* Streamlit
-* SQLite
-* Plotly & Matplotlib
-* ReportLab
-* gTTS
+## Workflow
 
-### Results
-* Validation Accuracy: 85%+
-* Model Size: 33 MB
-* Fast prediction and report generation
+1. Upload a paddy leaf image
+2. Preprocess the image
+3. Predict the disease using CNN
+4. Generate Grad-CAM heatmap
+5. Estimate disease severity
+6. Calculate Crop Health Index
+7. Detect infection location
+8. Provide bilingual treatment and prevention advice
+9. Generate a downloadable PDF report
 
-### Project Objective
-The objective of Smart Paddy AI is to support early disease identification in rice crops and provide a simple AI-powered platform that can assist agricultural decision-making, while giving administrators the tools to monitor adoption and model performance over time.
+## Project Highlights
 
-### Author
-Divyadharshini C
+- Explainable AI for transparent predictions
+- Farmer-friendly interface
+- Multilingual support (English & Tamil)
+- Cloud deployment using Streamlit
+- Comprehensive disease analysis beyond simple classification
+
+## Deployment
+
+The application is deployed on Streamlit Community Cloud.
+Live App: smart-paddy-ai.streamlit.app
+## Author
+DIVYADHARSHINI C
+
+**Dharshu**
+
 M.Sc. Computer Science
-
-### License
-MIT License
