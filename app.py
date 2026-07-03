@@ -1,4 +1,3 @@
-"""
 app.py — Smart Paddy AI: Main Application
 Role-based access control:
   - Admin  (dharshu / admin123): all pages
@@ -390,64 +389,43 @@ if "🔬 Diagnosis" in page:
         # ── Grad-CAM ───────────────────────────────────────────
         with st.spinner("Generating explainability heatmap..."):
 
-try:
+            # Correct indentation starts here
+            try:
+                class_index = class_names.index(label)
 
-class_index = class_names.index(label)
+                # Generate Grad-CAM
+                orig_img, cam_img = generate_gradcam(
+                    model,
+                    image,
+                    class_index
+                )
 
-Generate Grad-CAM
+                gradcam_available = True
 
-orig_img, cam_img = generate_gradcam(
+            except Exception as e:
+                gradcam_available = False
+                cam_img = None
 
-model,
-
-image,
-
-class_index
-
-)
-
-gradcam_available = True
-
-except Exception as e:
-
-gradcam_available = False
-
-cam_img = None
-
-orig_img = image.resize((224, 224))
-
-SHOW REAL ERROR (important)
-
-st.error("Grad-CAM failed on Streamlit Cloud")
-
-st.exception(e)
+                # Show error
+                st.error("Grad-CAM failed on Streamlit Cloud")
+                st.exception(e)
 
         # ── Severity + Health ──────────────────────────────────
         heatmap = None
 
-if gradcam_available:
+        if gradcam_available:
+            try:
+                from utils.gradcam import compute_gradcam
+                from utils.predict import preprocess
 
-try:
-
-from utils.gradcam import compute_gradcam
-
-from utils.predict import preprocess
-
-heatmap = compute_gradcam(
-
-model,
-
-preprocess(image),
-
-class_index
-
-)
-
-except Exception as e:
-
-st.error("Heatmap generation failed")
-
-st.exception(e)
+                heatmap = compute_gradcam(
+                    model,
+                    preprocess(image),
+                    class_index
+                )
+            except Exception as e:
+                st.error("Heatmap generation failed")
+                st.exception(e)
 
         severity = estimate_severity(label, confidence, heatmap)
         health   = crop_health_index(label, confidence, severity["percentage"])
