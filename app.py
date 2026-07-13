@@ -1070,7 +1070,7 @@ elif "👑 Admin Dashboard" in page:
         )
 
         st.markdown("---")
-        st.markdown(f"#### Full Prediction History ({total_scans} records)")
+        st.markdown(f"#### Full Prediction History ({total} records)")
         st.dataframe(
             log_df.iloc[::-1].reset_index(drop=True),
             use_container_width=True,
