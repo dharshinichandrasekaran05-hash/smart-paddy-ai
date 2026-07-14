@@ -386,28 +386,32 @@ if "🔬 Diagnosis" in page:
         advisory      = advisory_both[lang]
 
         # ── Grad-CAM ───────────────────────────────────────────
-        with st.spinner("Generating explainability heatmap..."):
+        # NOTE: orig_img / cam_img / class_index are ONLY guaranteed
+        # to exist if gradcam_available is True. Every downstream use
+        # of these variables MUST be guarded by that flag — the crash
+        # previously seen ("TypeError" on st.image(orig_img, ...))
+        # happened because orig_img was referenced unconditionally
+        # even when generate_gradcam() had raised and left it unset.
+        gradcam_available = False
+        orig_img = None
+        cam_img = None
+        class_index = None
+        gradcam_error = None
 
-            # Correct indentation starts here
+        with st.spinner("Generating explainability heatmap..."):
             try:
                 class_index = class_names.index(label)
-
-                # Generate Grad-CAM
-                orig_img, cam_img = generate_gradcam(
-                    model,
-                    image,
-                    class_index
-                )
-
+                orig_img, cam_img = generate_gradcam(model, image, class_index)
                 gradcam_available = True
-
             except Exception as e:
                 gradcam_available = False
+                orig_img = None
                 cam_img = None
+                gradcam_error = e
 
-                # Show error
-                st.error("Grad-CAM failed on Streamlit Cloud")
-                st.exception(e)
+        if not gradcam_available and gradcam_error is not None:
+            st.error("Grad-CAM failed on Streamlit Cloud")
+            st.exception(gradcam_error)
 
         # ── Severity + Health ──────────────────────────────────
         heatmap = None
@@ -425,6 +429,7 @@ if "🔬 Diagnosis" in page:
             except Exception as e:
                 st.error("Heatmap generation failed")
                 st.exception(e)
+                heatmap = None
 
         severity = estimate_severity(label, confidence, heatmap)
         health   = crop_health_index(label, confidence, severity["percentage"])
@@ -451,7 +456,10 @@ if "🔬 Diagnosis" in page:
             )
             img_col1, img_col2 = st.columns(2)
             with img_col1:
-                st.image(orig_img, caption=L["orig"], use_container_width=True)
+                # Fall back to the raw uploaded image whenever Grad-CAM
+                # failed, instead of touching the possibly-unset orig_img.
+                display_orig = orig_img if gradcam_available else image
+                st.image(display_orig, caption=L["orig"], use_container_width=True)
             with img_col2:
                 if gradcam_available:
                     st.image(cam_img, caption=L["heatmap"], use_container_width=True)
