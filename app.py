@@ -451,10 +451,10 @@ if "🔬 Diagnosis" in page:
             )
             img_col1, img_col2 = st.columns(2)
             with img_col1:
-                st.image(orig_img, caption=L["orig"], width="stretch")
+                st.image(orig_img, caption=L["orig"], use_container_width=True)
             with img_col2:
                 if gradcam_available:
-                    st.image(cam_img, caption=L["heatmap"], width="stretch")
+                    st.image(cam_img, caption=L["heatmap"], use_container_width=True)
                     st.download_button(
                         label=L["download_cam"],
                         data=pil_to_bytes(cam_img),
@@ -935,11 +935,11 @@ elif "📐 Research" in page:
 
     if train_curves:
         st.markdown("#### Training Curves (from last training run)")
-        st.image(train_curves, width="stretch")
+        st.image(train_curves, use_container_width=True)
 
     if saved_cm:
         st.markdown("#### Confusion Matrix (from last training run)")
-        st.image(saved_cm, width="stretch")
+        st.image(saved_cm, use_container_width=True)
 
     st.markdown("---")
     st.markdown("#### Upload Evaluation Data (Optional)")
