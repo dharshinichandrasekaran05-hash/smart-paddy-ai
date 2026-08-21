@@ -1,9 +1,9 @@
 """
 utils/predict.py — Smart Paddy AI prediction engine.
 
-Loads the existing H5 model, removes the legacy DepthwiseConv2D groups field
-when needed, and automatically resizes images to the model's actual input
-height and width.
+Loads the existing H5 model and always uses the model's own input shape.
+This keeps prediction, Grad-CAM, severity, and explainability preprocessing
+consistent without changing app.py.
 """
 
 import os
@@ -26,7 +26,7 @@ _input_size = None
 
 
 class CompatibleDepthwiseConv2D(DepthwiseConv2D):
-    """Compatibility wrapper for older H5 DepthwiseConv2D configs."""
+    """Load older H5 files containing an unsupported groups=1 field."""
 
     @classmethod
     def from_config(cls, config):
@@ -46,7 +46,7 @@ def _load_class_indices() -> dict:
 
 
 def _find_input_size(model):
-    """Return (width, height, channels) from the loaded model input shape."""
+    """Return (width, height, channels) from the model input shape."""
     shape = model.input_shape
 
     if isinstance(shape, list):
@@ -56,7 +56,8 @@ def _find_input_size(model):
 
     if shape is None or len(shape) != 4:
         raise ValueError(
-            f"Unsupported model input shape: {shape}. Expected (None, height, width, channels)."
+            f"Unsupported model input shape: {shape}. "
+            "Expected (None, height, width, channels)."
         )
 
     _, height, width, channels = shape
@@ -67,7 +68,7 @@ def _find_input_size(model):
 
 
 def get_model():
-    """Load the model, input size, and class mapping once."""
+    """Load the model, input size, and class mapping once per process."""
     global _model, _class_names, _class_indices, _input_size
 
     if _model is None:
@@ -103,9 +104,17 @@ def get_model():
 
 
 def preprocess(image: Image.Image, input_size=None) -> np.ndarray:
-    """Resize and convert an uploaded image to the model input tensor."""
+    """
+    Resize an image to the model's expected dimensions.
+
+    If app.py calls preprocess(image) without an explicit size, the loaded
+    model's actual input size is used. It never falls back to 224x224.
+    """
     if input_size is None:
-        input_size = (224, 224, 3)
+        # app.py calls this form while computing the raw Grad-CAM heatmap.
+        # get_model() is already cached after app startup and is safe here.
+        get_model()
+        input_size = _input_size
 
     width, height, channels = input_size
 
