@@ -14,8 +14,12 @@ Generates a downloadable diagnostic report containing:
 """
 
 import io
+import os
 import datetime
 from PIL import Image
+
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -48,8 +52,41 @@ def _pil_to_rl_image(pil_img: Image.Image, width_cm: float, height_cm: float) ->
 
 
 # ─────────────────────── STYLES ───────────────────────────────
-def _build_styles():
+_FONT_DIR = "/usr/share/fonts/truetype/noto"
+_FONT_FILES = {
+    "english": ("NotoSans-Regular.ttf", "NotoSans-Bold.ttf"),
+    "tamil": ("NotoSansTamil-Regular.ttf", "NotoSansTamil-Bold.ttf"),
+    "telugu": ("NotoSansTelugu-Regular.ttf", "NotoSansTelugu-Bold.ttf"),
+    "kannada": ("NotoSansKannada-Regular.ttf", "NotoSansKannada-Bold.ttf"),
+    "malayalam": ("NotoSansMalayalam-Regular.ttf", "NotoSansMalayalam-Bold.ttf"),
+    "hindi": ("NotoSansDevanagari-Regular.ttf", "NotoSansDevanagari-Bold.ttf"),
+    "marathi": ("NotoSansDevanagari-Regular.ttf", "NotoSansDevanagari-Bold.ttf"),
+    "bengali": ("NotoSansBengali-Regular.ttf", "NotoSansBengali-Bold.ttf"),
+    "gujarati": ("NotoSansGujarati-Regular.ttf", "NotoSansGujarati-Bold.ttf"),
+    "punjabi": ("NotoSansGurmukhi-Regular.ttf", "NotoSansGurmukhi-Bold.ttf"),
+    "odia": ("NotoSansOriya-Regular.ttf", "NotoSansOriya-Bold.ttf"),
+}
+
+
+def _register_fonts(lang: str):
+    """Return a Unicode font pair when available, otherwise safe Latin fallback."""
+    regular_file, bold_file = _FONT_FILES.get(lang, _FONT_FILES["english"])
+    regular_path = os.path.join(_FONT_DIR, regular_file)
+    bold_path = os.path.join(_FONT_DIR, bold_file)
+    if not (os.path.exists(regular_path) and os.path.exists(bold_path)):
+        return "Helvetica", "Helvetica-Bold"
+    regular_name = f"PaddyUnicode-{lang}"
+    bold_name = f"PaddyUnicode-{lang}-Bold"
+    if regular_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(regular_name, regular_path))
+    if bold_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(bold_name, bold_path))
+    return regular_name, bold_name
+
+
+def _build_styles(lang: str = "english"):
     base = getSampleStyleSheet()
+    regular_font, bold_font = _register_fonts(lang)
 
     title_style = ParagraphStyle(
         "ReportTitle",
@@ -58,7 +95,7 @@ def _build_styles():
         textColor=GREEN,
         spaceAfter=4,
         alignment=TA_CENTER,
-        fontName="Helvetica-Bold",
+        fontName=bold_font,
     )
     subtitle_style = ParagraphStyle(
         "SubTitle",
@@ -75,14 +112,17 @@ def _build_styles():
         textColor=GREEN,
         spaceBefore=10,
         spaceAfter=4,
-        fontName="Helvetica-Bold",
+        fontName=bold_font,
     )
+    subtitle_style.fontName = regular_font
+
     body_style = ParagraphStyle(
         "BodyText",
         parent=base["Normal"],
         fontSize=9,
         leading=14,
         textColor=DARK,
+        fontName=regular_font,
     )
     bullet_style = ParagraphStyle(
         "BulletItem",
@@ -92,12 +132,14 @@ def _build_styles():
         leftIndent=12,
         bulletIndent=4,
         textColor=DARK,
+        fontName=regular_font,
     )
     label_style = ParagraphStyle(
         "Label",
         parent=base["Normal"],
         fontSize=8,
         textColor=colors.grey,
+        fontName=regular_font,
     )
 
     return {
@@ -331,7 +373,7 @@ def generate_pdf_report(
         topMargin=2 * cm,
         bottomMargin=2 * cm,
     )
-    styles = _build_styles()
+    styles = _build_styles(lang)
     story  = []
 
     ts = datetime.datetime.now().strftime("%d %B %Y  %H:%M:%S")
