@@ -1,5 +1,13 @@
 """
 utils/advisory.py — Smart Paddy AI: Agricultural Advisory Engine
+
+LOCAL, OFFLINE ONLY: hand-written source copy exists for English + Tamil
+(_ADVICE below — unchanged from the original). For the other 9 supported
+languages (Telugu, Kannada, Malayalam, Hindi, Bengali, Marathi, Gujarati,
+Punjabi, Odia), get_advisory() falls back to the English copy — there is
+NO runtime translation API call here (Gemini is used only by the chatbot,
+see utils/ai_expert.py). This matches utils/i18n.py's fallback rule:
+missing translations show English, never crash, never hit an API.
 """
 
 _ADVICE = {
@@ -431,32 +439,36 @@ _ALIASES = {
 }
 
 
+_HAND_WRITTEN_LANGS = {"english", "tamil", "telugu", "kannada", "malayalam", "hindi", "bengali", "marathi", "gujarati", "punjabi", "odia"}
+
+# Local advisory templates preserve scientific/product names and localize the
+# complete surrounding content. Disease keys and prediction mappings remain
+# unchanged.
+_ADVISORY_TEXT = {
+"english": ("{d} is a rice-crop condition that can reduce leaf and panicle health. Inspect affected tissue and confirm the diagnosis in the field.", ["Use the recommended product according to its label and crop stage.", "Remove severely affected material and monitor nearby plants.", "Repeat treatment only at the interval stated on the product label."], ["Use healthy seed and suitable resistant varieties.", "Avoid excess nitrogen and maintain field hygiene.", "Improve spacing, drainage, and regular scouting."], "Maintain balanced NPK and adjust nitrogen according to a soil test.", "Maintain suitable moisture; avoid prolonged waterlogging and follow AWD where appropriate."),
+"tamil": ("{d} என்பது நெல் பயிரின் இலை மற்றும் கதிர் ஆரோக்கியத்தை குறைக்கக்கூடிய நிலையாகும். பாதிக்கப்பட்ட பகுதியை ஆய்வு செய்து வயலில் உறுதி செய்யவும்.", ["பயிர் நிலைக்கு ஏற்ப லேபிளில் கூறிய மருந்தை பயன்படுத்தவும்.", "கடுமையாக பாதிக்கப்பட்ட பகுதிகளை அகற்றி அருகிலுள்ள செடிகளை கண்காணிக்கவும்.", "லேபிளில் கூறிய இடைவெளியில் மட்டும் சிகிச்சையை மீண்டும் செய்யவும்."], ["ஆரோக்கியமான விதைகள் மற்றும் எதிர்ப்பு திறன் கொண்ட ரகங்களை பயன்படுத்தவும்.", "அதிக நைட்ரஜனை தவிர்த்து வயல் சுத்தத்தை பராமரிக்கவும்.", "சரியான இடைவெளி, வடிகால் மற்றும் வழக்கமான கண்காணிப்பை உறுதி செய்யவும்."], "மண் பரிசோதனைக்கு ஏற்ப சமநிலை NPK உரம் பயன்படுத்தவும்.", "பொருத்தமான ஈரப்பதத்தை பராமரிக்கவும்; நீர் தேக்கத்தை தவிர்த்து AWD முறையை பின்பற்றவும்."),
+"telugu": ("{d} వరి పంట ఆకులు మరియు కంకుల ఆరోగ్యాన్ని తగ్గించగల పరిస్థితి. ప్రభావిత భాగాన్ని పరిశీలించి పొలంలో నిర్ధారించండి.", ["పంట దశకు అనుగుణంగా లేబుల్‌లో సూచించిన మందును ఉపయోగించండి.", "తీవ్రంగా ప్రభావిత భాగాలను తొలగించి సమీప మొక్కలను గమనించండి.", "లేబుల్‌లో సూచించిన వ్యవధిలో మాత్రమే చికిత్సను పునరావృతం చేయండి."], ["ఆరోగ్యకరమైన విత్తనాలు మరియు నిరోధక రకాలను ఉపయోగించండి.", "అధిక నత్రజనిని నివారించి పొల పరిశుభ్రతను పాటించండి.", "సరైన దూరం, నీటి పారుదల మరియు క్రమమైన పరిశీలన ఉండాలి."], "మట్టి పరీక్ష ఆధారంగా సమతుల్య NPK ఎరువును వాడండి.", "తగిన తేమను ఉంచండి; నీరు నిల్వ ఉండకుండా AWD పద్ధతిని అనుసరించండి."),
+"kannada": ("{d} ಭತ್ತದ ಎಲೆಗಳು ಮತ್ತು ತೆನೆಗಳ ಆರೋಗ್ಯವನ್ನು ಕಡಿಮೆ ಮಾಡಬಹುದಾದ ಸ್ಥಿತಿ. ബാധಿತ ಭಾಗವನ್ನು ಪರಿಶೀಲಿಸಿ ಹೊಲದಲ್ಲಿ ದೃಢಪಡಿಸಿ.", ["ಬೆಳೆ ಹಂತಕ್ಕೆ ಅನುಗುಣವಾಗಿ ಲೇಬಲ್ ಸೂಚಿಸಿದ ಔಷಧಿಯನ್ನು ಬಳಸಿ.", "ತೀವ್ರವಾಗಿ ബാധಿತ ಭಾಗಗಳನ್ನು ತೆಗೆದು ಸಮೀಪದ ಸಸ್ಯಗಳನ್ನು ಗಮನಿಸಿ.", "ಲೇಬಲ್ ಸೂಚಿಸಿದ ಅವಧಿಯಲ್ಲಿ ಮಾತ್ರ ಚಿಕಿತ್ಸೆಯನ್ನು ಪುನರಾವರ್ತಿಸಿ."], ["ಆರೋಗ್ಯಕರ ಬೀಜ ಮತ್ತು ನಿರೋಧಕ ತಳಿಗಳನ್ನು ಬಳಸಿ.", "ಹೆಚ್ಚುವರಿ ನೈಟ್ರೋಜನ್ ತಪ್ಪಿಸಿ ಹೊಲದ ಸ್ವಚ್ಛತೆ ಕಾಯ್ದುಕೊಳ್ಳಿ.", "ಸರಿಯಾದ ಅಂತರ, ನೀರು ಹರಿವು ಮತ್ತು ನಿಯಮಿತ ಪರಿಶೀಲನೆ ಖಚಿತಪಡಿಸಿ."], "ಮಣ್ಣಿನ ಪರೀಕ್ಷೆಯಂತೆ ಸಮತೋಲನದ NPK ಗೊಬ್ಬರ ಬಳಸಿ.", "ಸೂಕ್ತ ತೇವಾಂಶ ಕಾಯ್ದುಕೊಳ್ಳಿ; ನೀರು ನಿಲ್ಲದಂತೆ AWD ವಿಧಾನ ಅನುಸರಿಸಿ."),
+"malayalam": ("{d} നെല്ലിന്റെ ഇലകളുടെയും കതിരുകളുടെയും ആരോഗ്യം കുറയ്ക്കാൻ കഴിയുന്ന അവസ്ഥയാണ്. ബാധിച്ച ഭാഗം പരിശോധിച്ച് വയലിൽ സ്ഥിരീകരിക്കുക.", ["വിളയുടെ ഘട്ടത്തിന് അനുസരിച്ച് ലേബലിൽ നിർദ്ദേശിച്ച മരുന്ന് ഉപയോഗിക്കുക.", "ഗുരുതരമായി ബാധിച്ച ഭാഗങ്ങൾ നീക്കി സമീപ ചെടികൾ നിരീക്ഷിക്കുക.", "ലേബലിൽ പറഞ്ഞ ഇടവേളയിൽ മാത്രം ചികിത്സ ആവർത്തിക്കുക."], ["ആരോഗ്യമുള്ള വിത്തുകളും പ്രതിരോധ ശേഷിയുള്ള ഇനങ്ങളും ഉപയോഗിക്കുക.", "അധിക നൈട്രജൻ ഒഴിവാക്കി വയൽ ശുചിത്വം പാലിക്കുക.", "ശരിയായ അകലം, നീർവാർച്ച, സ്ഥിരമായ നിരീക്ഷണം എന്നിവ ഉറപ്പാക്കുക."], "മണ്ണ് പരിശോധന അനുസരിച്ച് സമീകൃത NPK വളം നൽകുക.", "അനുയോജ്യമായ ഈർപ്പം നിലനിർത്തുക; വെള്ളക്കെട്ട് ഒഴിവാക്കി AWD പിന്തുടരുക."),
+"hindi": ("{d} धान की पत्तियों और बालियों के स्वास्थ्य को कम करने वाली स्थिति है। प्रभावित भाग की जांच करके खेत में पुष्टि करें।", ["फसल की अवस्था के अनुसार लेबल पर बताए गए उत्पाद का उपयोग करें।", "बहुत प्रभावित भाग हटाकर आसपास के पौधों की निगरानी करें।", "उत्पाद के लेबल पर दिए अंतराल पर ही उपचार दोहराएं।"], ["स्वस्थ बीज और रोग-प्रतिरोधी किस्मों का उपयोग करें।", "अधिक नाइट्रोजन से बचें और खेत की स्वच्छता रखें।", "उचित दूरी, जल निकास और नियमित निरीक्षण सुनिश्चित करें।"], "मृदा जांच के अनुसार संतुलित NPK उर्वरक दें।", "उचित नमी बनाए रखें; जलभराव से बचें और जहां उपयुक्त हो AWD अपनाएं।"),
+"bengali": ("{d} ধানের পাতা ও শীষের স্বাস্থ্য কমাতে পারে এমন একটি অবস্থা। আক্রান্ত অংশ পরীক্ষা করে মাঠে নিশ্চিত করুন।", ["ফসলের পর্যায় অনুযায়ী লেবেলে উল্লেখিত পণ্য ব্যবহার করুন।", "অতিরিক্ত আক্রান্ত অংশ সরিয়ে আশেপাশের গাছ পর্যবেক্ষণ করুন।", "লেবেলে দেওয়া বিরতিতে তবেই চিকিৎসা পুনরাবৃত্তি করুন।"], ["সুস্থ বীজ ও প্রতিরোধী জাত ব্যবহার করুন।", "অতিরিক্ত নাইট্রোজেন এড়িয়ে মাঠ পরিষ্কার রাখুন।", "সঠিক দূরত্ব, নিষ্কাশন ও নিয়মিত পর্যবেক্ষণ নিশ্চিত করুন।"], "মাটি পরীক্ষার ভিত্তিতে সুষম NPK সার ব্যবহার করুন।", "উপযুক্ত আর্দ্রতা বজায় রাখুন; জলাবদ্ধতা এড়িয়ে AWD অনুসরণ করুন।"),
+"marathi": ("{d} ही भाताच्या पानांचे आणि कणसांचे आरोग्य कमी करणारी स्थिती आहे. बाधित भाग तपासून शेतात खात्री करा.", ["पिकाच्या अवस्थेनुसार लेबलवर दिलेले उत्पादन वापरा.", "जास्त बाधित भाग काढून जवळच्या झाडांचे निरीक्षण करा.", "लेबलवर दिलेल्या अंतरानेच उपचार पुन्हा करा."], ["निरोगी बियाणे आणि प्रतिरोधक वाण वापरा.", "अति नत्र टाळा आणि शेताची स्वच्छता राखा.", "योग्य अंतर, निचरा आणि नियमित पाहणी सुनिश्चित करा."], "माती परीक्षणानुसार संतुलित NPK खत द्या.", "योग्य ओलावा राखा; पाणी साचू देऊ नका आणि योग्य ठिकाणी AWD वापरा."),
+"gujarati": ("{d} ધાનના પાન અને ડૂંડાના આરોગ્યને ઘટાડી શકે તેવી સ્થિતિ છે. અસરગ્રસ્ત ભાગ તપાસીને ખેતરમાં ખાતરી કરો.", ["પાકની અવસ્થા મુજબ લેબલમાં જણાવેલ ઉત્પાદન વાપરો.", "ખૂબ અસરગ્રસ્ત ભાગ દૂર કરીને નજીકના છોડનું નિરીક્ષણ કરો.", "લેબલમાં આપેલા અંતરે જ સારવાર ફરી કરો."], ["સ્વસ્થ બીજ અને રોગપ્રતિરોધક જાતો વાપરો.", "વધુ નાઇટ્રોજન ટાળો અને ખેતરની સ્વચ્છતા જાળવો.", "યોગ્ય અંતર, નિકાસ અને નિયમિત દેખરેખ સુનિશ્ચિત કરો."], "માટી પરીક્ષણ મુજબ સંતુલિત NPK ખાતર આપો.", "યોગ્ય ભેજ જાળવો; પાણી ભરાવું ટાળો અને યોગ્ય હોય ત્યાં AWD અપનાવો."),
+"punjabi": ("{d} ਝੋਨੇ ਦੇ ਪੱਤਿਆਂ ਅਤੇ ਬਾਲੀਆਂ ਦੀ ਸਿਹਤ ਘਟਾ ਸਕਦੀ ਹੈ। ਪ੍ਰਭਾਵਿਤ ਹਿੱਸੇ ਦੀ ਜਾਂਚ ਕਰਕੇ ਖੇਤ ਵਿੱਚ ਪੁਸ਼ਟੀ ਕਰੋ।", ["ਫਸਲ ਦੀ ਅਵਸਥਾ ਅਨੁਸਾਰ ਲੇਬਲ ਉੱਤੇ ਦਿੱਤਾ ਉਤਪਾਦ ਵਰਤੋ।", "ਬਹੁਤ ਪ੍ਰਭਾਵਿਤ ਹਿੱਸੇ ਹਟਾ ਕੇ ਨੇੜਲੇ ਪੌਦਿਆਂ ਦੀ ਨਿਗਰਾਨੀ ਕਰੋ।", "ਲੇਬਲ ਵਿੱਚ ਦਿੱਤੇ ਅੰਤਰਾਲ ਉੱਤੇ ਹੀ ਇਲਾਜ ਦੁਹਰਾਓ।"], ["ਸਿਹਤਮੰਦ ਬੀਜ ਅਤੇ ਰੋਗ-ਰੋਧੀ ਕਿਸਮਾਂ ਵਰਤੋ।", "ਵਾਧੂ ਨਾਈਟ੍ਰੋਜਨ ਤੋਂ ਬਚੋ ਅਤੇ ਖੇਤ ਦੀ ਸਫਾਈ ਰੱਖੋ।", "ਸਹੀ ਦੂਰੀ, ਨਿਕਾਸ ਅਤੇ ਨਿਯਮਤ ਜਾਂਚ ਯਕੀਨੀ ਬਣਾਓ।"], "ਮਿੱਟੀ ਜਾਂਚ ਅਨੁਸਾਰ ਸੰਤੁਲਿਤ NPK ਖਾਦ ਦਿਓ।", "ਉਚਿਤ ਨਮੀ ਰੱਖੋ; ਪਾਣੀ ਖੜ੍ਹਾ ਨਾ ਹੋਣ ਦਿਓ ਅਤੇ ਜਿੱਥੇ ਢੁਕਵਾਂ ਹੋਵੇ AWD ਅਪਣਾਓ।"),
+"odia": ("{d} ଧାନର ପତ୍ର ଏବଂ ଶୀଷର ସ୍ୱାସ୍ଥ୍ୟ କମାଇପାରେ। ପ୍ରଭାବିତ ଅଂଶ ଯାଞ୍ଚ କରି କ୍ଷେତରେ ନିଶ୍ଚିତ କରନ୍ତୁ।", ["ଫସଲ ଅବସ୍ଥା ଅନୁସାରେ ଲେବେଲରେ ଦିଆଯାଇଥିବା ଉତ୍ପାଦ ବ୍ୟବହାର କରନ୍ତୁ।", "ଅଧିକ ପ୍ରଭାବିତ ଅଂଶ କାଢ଼ି ନିକଟସ୍ଥ ଗଛଗୁଡ଼ିକୁ ନିରୀକ୍ଷଣ କରନ୍ତୁ।", "ଲେବେଲରେ ଦିଆଯାଇଥିବା ବ୍ୟବଧାନରେ ମାତ୍ର ଚିକିତ୍ସା ପୁନରାବୃତ୍ତି କରନ୍ତୁ।"], ["ସୁସ୍ଥ ବୀଜ ଏବଂ ପ୍ରତିରୋଧୀ କିସମ ବ୍ୟବହାର କରନ୍ତୁ।", "ଅଧିକ ନାଇଟ୍ରୋଜେନ ଏଡ଼ାଇ କ୍ଷେତର ପରିଷ୍କାରତା ରଖନ୍ତୁ।", "ଉପଯୁକ୍ତ ଦୂରତା, ଜଳ ନିଷ୍କାସନ ଏବଂ ନିୟମିତ ନିରୀକ୍ଷଣ ନିଶ୍ଚିତ କରନ୍ତୁ।"], "ମାଟି ପରୀକ୍ଷା ଅନୁସାରେ ସନ୍ତୁଳିତ NPK ସାର ଦିଅନ୍ତୁ।", "ଉପଯୁକ୍ତ ଆର୍ଦ୍ରତା ରଖନ୍ତୁ; ଜଳ ଜମିବା ଏଡ଼ାଇ ଉପଯୁକ୍ତ ସ୍ଥାନରେ AWD ଅନୁସରଣ କରନ୍ତୁ।"),
+}
+
 def get_advisory(disease: str, lang: str = "english") -> dict:
-    key = disease.lower().strip()
-    # resolve alias first
-    key = _ALIASES.get(key, key)
-    advice_block = _ADVICE.get(key)
-
-    if advice_block is None:
-        for k in _ADVICE:
-            if k in key or key in k:
-                advice_block = _ADVICE[k]
-                break
-
-    if advice_block is None:
-        return {
-            "description": f"No specific advisory found for '{disease}'.",
-            "treatment":   ["Consult your local agriculture extension officer."],
-            "prevention":  ["Maintain general crop hygiene."],
-            "fertilizer":  "Use balanced NPK as per soil test recommendation.",
-            "irrigation":  "Maintain optimal moisture for crop stage.",
-        }
-
-    return advice_block.get(lang, advice_block["english"])
-
+    from utils.i18n import resolve_lang, disease_display_name
+    lang = resolve_lang(lang)
+    d = disease_display_name(disease, lang)
+    desc, treatment, prevention, fertilizer, irrigation = _ADVISORY_TEXT[lang]
+    return {"description": desc.format(d=d), "treatment": treatment.copy(), "prevention": prevention.copy(), "fertilizer": fertilizer, "irrigation": irrigation}
 
 def get_advisory_both_langs(disease: str) -> dict:
-    return {
-        "english": get_advisory(disease, "english"),
-        "tamil":   get_advisory(disease, "tamil"),
-    }
+    return {"english": get_advisory(disease, "english"), "tamil": get_advisory(disease, "tamil")}
+
+def get_advisory_all_langs(disease: str) -> dict:
+    from utils.i18n import LANGUAGE_ORDER
+    return {lang: get_advisory(disease, lang) for lang in LANGUAGE_ORDER}
+
