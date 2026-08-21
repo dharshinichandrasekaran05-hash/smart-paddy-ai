@@ -112,18 +112,29 @@ _CSS = """
     transform-origin: 70% 70%;
 }
 .pb-bubble {
+    position: fixed !important;
+    right: 112px !important;
+    bottom: 112px !important;
+    z-index: 10001 !important;
     animation: pb-pop-in 0.35s ease-out;
     background: #ffffff;
     border: 1px solid #cdeccb;
     border-radius: 14px;
-    padding: 8px 11px;
-    font-size: 12px;
-    line-height: 1.35;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.45;
     color: #1a3c1a !important;
     box-shadow: 0 6px 16px rgba(20,90,50,0.18);
-    width: 178px;
-    max-width: 178px;
-    margin: 0 auto 7px;
+    width: min(270px, calc(100vw - 136px));
+    min-width: 170px;
+    max-width: 270px;
+    min-height: 48px;
+    max-height: 116px;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    white-space: normal !important;
     text-align: center;
     box-sizing: border-box;
 }
@@ -358,8 +369,16 @@ _CSS = """
         min-height: 84px !important;
     }
     .pb-bubble {
-        width: 160px;
-        max-width: 160px;
+        left: 12px !important;
+        right: 94px !important;
+        bottom: 92px !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: 110px !important;
+        padding: 9px 12px !important;
+        font-size: 12px !important;
+        line-height: 1.45 !important;
     }
     .pb-msg-user, .pb-msg-bot {
         max-width: 96%;
