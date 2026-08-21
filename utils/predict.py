@@ -1,132 +1,171 @@
 """
 utils/predict.py — Smart Paddy AI: Prediction Engine
-Place at: smart_paddy_ai/utils/predict.py
 
-Fix applied:
-  - IMG_SIZE changed to (224, 224) to match the updated train.py, which now
-    trains at EfficientNetB0's native pretraining resolution for better
-    fine-detail (lesion/texture) discrimination between disease classes.
-  - All other logic preserved exactly as before.
+Loads the existing H5 model and performs Paddy disease prediction.
+Includes compatibility handling for older H5 files that store
+DepthwiseConv2D with an unsupported groups=1 argument.
 """
 
 import os
 import json
+
 import numpy as np
 from PIL import Image, ImageOps
 import tensorflow as tf
 from tensorflow.keras.models import load_model
+from tensorflow.keras.layers import DepthwiseConv2D
 
-# ─────────────────────── PATHS ────────────────────────────────
-MODEL_PATH     = "model/paddy_model.h5"
+
+# ─────────────────────── PATHS ──────────────────────────────────
+# Paths are relative to the repository root, where app.py is located.
+MODEL_PATH = "model/paddy_model.h5"
 CLASS_IDX_PATH = "model/class_indices.json"
 
-# ─────────────────────── CONFIG ───────────────────────────────
-IMG_SIZE = (224, 224)   # ✅ Must match train.py IMG_SIZE exactly
 
-# ─────────────────────── GLOBALS ──────────────────────────────
-_model       = None
+# ─────────────────────── CONFIG ─────────────────────────────────
+IMG_SIZE = (224, 224)
+
+
+# ─────────────────────── GLOBALS ────────────────────────────────
+_model = None
 _class_names = None
 _class_indices = None
 
 
-# ─────────────────────── LOADERS ──────────────────────────────
+# ─────────────── H5/KERAS COMPATIBILITY LAYER ───────────────────
+class CompatibleDepthwiseConv2D(DepthwiseConv2D):
+    """
+    Compatibility wrapper for H5 models saved with a groups=1 field.
+
+    Some model files contain groups=1 in the serialized DepthwiseConv2D
+    configuration, while the installed Keras version does not accept that
+    keyword for this layer. Removing groups=1 is safe because a depthwise
+    convolution is already a single-group operation.
+    """
+
+    @classmethod
+    def from_config(cls, config):
+        config = dict(config)
+        config.pop("groups", None)
+        return super().from_config(config)
+
+
+# ─────────────────────── LOADERS ────────────────────────────────
 def _load_class_indices() -> dict:
-    """Load class-index mapping from JSON saved during training."""
+    """Load the class-index mapping saved during model training."""
     if not os.path.exists(CLASS_IDX_PATH):
         raise FileNotFoundError(
             f"class_indices.json not found at {CLASS_IDX_PATH}. "
-            "Run train.py first so class mapping is generated."
+            "Make sure the model folder is committed to the repository."
         )
-    with open(CLASS_IDX_PATH, "r") as f:
+
+    with open(CLASS_IDX_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def get_model():
-    """Lazy-load the Keras model and class mapping. Prints mapping on first load."""
+    """Lazy-load the Keras model and class mapping."""
     global _model, _class_names, _class_indices
 
     if _model is None:
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(
                 f"Model not found at {MODEL_PATH}. "
-                "Run train.py to train the model first."
+                "Make sure paddy_model.h5 is committed inside the model folder."
             )
-        _model = load_model(MODEL_PATH)
+
+        # compile=False is sufficient for prediction-only use. The custom
+        # object removes groups=1 from older H5 DepthwiseConv2D configurations.
+        _model = load_model(
+            MODEL_PATH,
+            compile=False,
+            custom_objects={
+                "DepthwiseConv2D": CompatibleDepthwiseConv2D,
+            },
+        )
 
         _class_indices = _load_class_indices()
         _class_names = [
-            k for k, _ in sorted(_class_indices.items(), key=lambda x: x[1])
+            name
+            for name, index in sorted(
+                _class_indices.items(),
+                key=lambda item: int(item[1]),
+            )
         ]
 
         print("\n===== CLASS MAPPING LOADED (index -> class) =====")
-        for i, name in enumerate(_class_names):
-            print(f"  [{i}] {name}")
+        for index, name in enumerate(_class_names):
+            print(f"  [{index}] {name}")
         print("=================================================\n")
 
     return _model, _class_names
 
 
-# ─────────────────────── PREPROCESSING ────────────────────────
+# ─────────────────────── PREPROCESSING ──────────────────────────
 def preprocess(image: Image.Image) -> np.ndarray:
     """
     Preprocess a PIL image for EfficientNetB0.
-    Image is resized to IMG_SIZE (224x224) to match training pipeline.
-    ✅ FIX: NO rescale — EfficientNetB0 has built-in normalization.
-    train.py uses NO rescale=1/255 (removed), so predict must match.
+
+    The image is resized to 224x224. No manual division by 255 is applied,
+    because EfficientNetB0 includes its own input preprocessing layer in the
+    trained model.
     """
-    # Phone/camera images often carry rotation in EXIF metadata. Correcting
-    # orientation improves real-world inference without changing the model's
-    # RGB tensor shape, resize, normalization, or class-index contract.
     try:
         image = ImageOps.exif_transpose(image)
     except Exception:
         pass
+
     image = image.convert("RGB")
-    image = image.resize(IMG_SIZE, Image.LANCZOS)   # ✅ (224, 224)
+    image = image.resize(IMG_SIZE, Image.LANCZOS)
 
     img = np.array(image, dtype=np.float32)
-    # ✅ NO division by 255 — EfficientNetB0 preprocesses internally
-    # Dividing by 255 here caused double normalization → bad predictions
-    img = np.expand_dims(img, axis=0)               # (1, 224, 224, 3)
+    img = np.expand_dims(img, axis=0)
 
     return img
 
 
-# ─────────────────────── PREDICTION ───────────────────────────
+# ─────────────────────── PREDICTION ─────────────────────────────
 def predict_image(image: Image.Image):
     """
     Run inference on a PIL image.
 
-    Returns
-    -------
-    predicted_class : str
-    confidence      : float  (0-1)
-    all_probs       : dict   {class_name: probability_percentage}
-
-    Example
-    -------
-    predicted_class = "blast"
-    confidence      = 0.83
-    all_probs       = {"blast": 83.1, "brown_spot": 12.0, "healthy": 3.2, ...}
+    Returns:
+        predicted_class: Predicted disease/class name.
+        confidence: Confidence as a value from 0 to 1.
+        all_probs: Dictionary containing each class and its percentage.
     """
     model, class_names = get_model()
 
-    img   = preprocess(image)
-    preds = model.predict(img, verbose=0)[0]   # shape: (num_classes,)
+    img = preprocess(image)
+    preds = model.predict(img, verbose=0)[0]
 
-    class_index     = int(np.argmax(preds))
-    confidence      = float(np.max(preds))
+    class_index = int(np.argmax(preds))
+    confidence = float(np.max(preds))
+
+    if class_index >= len(class_names):
+        raise RuntimeError(
+            "The model output has more classes than class_indices.json. "
+            f"Model outputs: {len(preds)}, class names: {len(class_names)}."
+        )
+
     predicted_class = class_names[class_index]
 
     all_probs = {
-        cls: round(float(preds[i]) * 100, 1)
-        for i, cls in enumerate(class_names)
+        class_name: round(float(preds[index]) * 100, 1)
+        for index, class_name in enumerate(class_names)
+        if index < len(preds)
     }
 
-    print(f"\n--- Prediction ---")
-    for cls, pct in sorted(all_probs.items(), key=lambda x: -x[1]):
-        bar = "█" * int(pct / 5)
-        print(f"  {cls:35s}: {pct:5.1f}%  {bar}")
-    print(f"  -> Final: {predicted_class} ({confidence*100:.1f}%)\n")
+    print("\n--- Prediction ---")
+    for class_name, percentage in sorted(
+        all_probs.items(),
+        key=lambda item: -item[1],
+    ):
+        bar = "█" * int(percentage / 5)
+        print(f"  {class_name:35s}: {percentage:5.1f}%  {bar}")
+    print(
+        f"  -> Final: {predicted_class} "
+        f"({confidence * 100:.1f}%)\n"
+    )
 
     return predicted_class, confidence, all_probs
