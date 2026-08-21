@@ -459,11 +459,38 @@ _ADVISORY_TEXT = {
 }
 
 def get_advisory(disease: str, lang: str = "english") -> dict:
+    """Return disease-specific advisory content without any runtime API call."""
     from utils.i18n import resolve_lang, disease_display_name
+
     lang = resolve_lang(lang)
-    d = disease_display_name(disease, lang)
+    key = _ALIASES.get(disease.lower().strip(), disease.lower().strip())
+    disease_record = _ADVICE.get(key)
+    if disease_record is None:
+        disease_record = _ADVICE.get("healthy", _ADVICE["normal"])
+
+    # The hand-written disease-specific English/Tamil records are the source
+    # of truth and preserve exact chemical/product names.
+    if lang in disease_record:
+        return {field: (value.copy() if isinstance(value, list) else value)
+                for field, value in disease_record[lang].items()}
+
+    # For the other supported languages, use the localized explanatory
+    # templates but keep the disease-specific product recommendation from the
+    # English record technically unchanged. This avoids one static treatment
+    # being shown for every disease and never translates chemical names.
+    d = disease_display_name(key, lang)
     desc, treatment, prevention, fertilizer, irrigation = _ADVISORY_TEXT[lang]
-    return {"description": desc.format(d=d), "treatment": treatment.copy(), "prevention": prevention.copy(), "fertilizer": fertilizer, "irrigation": irrigation}
+    localized = {
+        "description": desc.format(d=d),
+        "treatment": treatment.copy(),
+        "prevention": prevention.copy(),
+        "fertilizer": fertilizer,
+        "irrigation": irrigation,
+    }
+    english_treatment = disease_record.get("english", {}).get("treatment", [])
+    if english_treatment:
+        localized["treatment"][0] = english_treatment[0]
+    return localized
 
 def get_advisory_both_langs(disease: str) -> dict:
     return {"english": get_advisory(disease, "english"), "tamil": get_advisory(disease, "tamil")}
