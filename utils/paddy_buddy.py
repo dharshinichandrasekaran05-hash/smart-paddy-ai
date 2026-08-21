@@ -189,13 +189,14 @@ _CSS = """
     margin: 7px 0;
     font-size: 14px;
     line-height: 1.55;
-    max-width: 92%;
+    width: fit-content;
+    max-width: calc(100% - 4px) !important;
     min-width: 0;
     white-space: pre-wrap !important;
-    overflow-wrap: break-word !important;
-    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
     writing-mode: horizontal-tb !important;
-    overflow: visible;
+    overflow: hidden !important;
 }
 .pb-msg-user {
     background: #e8f5e9;
@@ -304,6 +305,30 @@ _CSS = """
 .st-key-paddybuddy_panel [data-testid="stVerticalBlock"] {
     gap: 7px !important;
 }
+.st-key-paddybuddy_panel .stMarkdown,
+.st-key-paddybuddy_panel .stMarkdown > div,
+.st-key-paddybuddy_panel .stMarkdown p {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+}
+.st-key-paddybuddy_toggle_btn {
+    position: relative !important;
+    z-index: 10002 !important;
+    width: 76px !important;
+    height: 84px !important;
+    margin-top: -84px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+.st-key-paddybuddy_toggle_btn button {
+    width: 76px !important;
+    height: 84px !important;
+    min-height: 84px !important;
+    opacity: 0.01 !important;
+    cursor: pointer !important;
+}
 .st-key-paddybuddy_toggle_btn button {
     background: transparent !important;
     border: none !important;
@@ -320,11 +345,17 @@ _CSS = """
         width: calc(100vw - 24px) !important;
         min-width: 0 !important;
         max-width: calc(100vw - 24px) !important;
-        height: min(620px, calc(100vh - 132px)) !important;
+        height: min(620px, calc(100vh - 190px)) !important;
         min-height: 390px !important;
         right: 12px !important;
         bottom: 148px !important;
         padding: 12px !important;
+    }
+    .st-key-paddybuddy_toggle_btn,
+    .st-key-paddybuddy_toggle_btn button {
+        width: 76px !important;
+        height: 84px !important;
+        min-height: 84px !important;
     }
     .pb-bubble {
         width: 160px;
@@ -481,9 +512,16 @@ def render_paddy_buddy(lang: str = "english", mood: str | None = None, speech: s
         if st.button("🌾", key="paddybuddy_toggle_btn", help=ui_text("paddybuddy_panel_title", lang)):
             st.session_state.pb_open = not is_open
             if not is_open:
-                # The greeting is kept once in the chat history and is never
-                # appended again merely because the panel is reopened.
+                # Every opening starts a fresh assistant session.
+                st.session_state.pb_history = []
+                st.session_state.pb_greeted_open = False
+                st.session_state.pb_greeting_lang = lang
                 st.session_state.pb_mood = "idle"
+            else:
+                # Closing discards all previous searches and replies.
+                st.session_state.pb_history = []
+                st.session_state.pb_greeted_open = False
+                st.session_state.pb_greeting_lang = None
             st.rerun()
 
 
@@ -601,4 +639,8 @@ def render_paddy_chat_panel(lang: str, diag_context: dict | None, chat_fn) -> No
 
         if close:
             st.session_state.pb_open = False
+            # Do not retain previous questions or answers after closing.
+            st.session_state.pb_history = []
+            st.session_state.pb_greeted_open = False
+            st.session_state.pb_greeting_lang = None
             st.rerun()
