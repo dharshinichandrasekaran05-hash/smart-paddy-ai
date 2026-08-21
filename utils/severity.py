@@ -7,7 +7,12 @@ Estimates severity as a percentage based on:
   - Pixel-level infected area from Grad-CAM heatmap
 """
 
+from __future__ import annotations
 import numpy as np
+
+# Used only to build the localized `ai_summary` sentence below. Imported
+# lazily-safe (utils.i18n has no circular dependency back on this module).
+from utils.i18n import health_ai_summary_text
 
 
 # ─────────────────────── THRESHOLDS ───────────────────────────
@@ -130,6 +135,8 @@ def advanced_health_dashboard(
     confidence: float,
     severity_result: dict,
     health_result: dict,
+    lang: str = "english",
+    disease_display: str | None = None,
 ) -> dict:
     """
     Build the extra fields needed for the "Enhanced Crop Health Intelligence
@@ -141,6 +148,19 @@ def advanced_health_dashboard(
     confidence       : float (0-1)
     severity_result  : dict returned by estimate_severity()
     health_result    : dict returned by crop_health_index()
+    lang             : one of utils.i18n.LANGUAGE_ORDER — controls the
+                        language of `ai_summary` only. The other enum
+                        fields below (risk_indicator, recovery_potential,
+                        leaf_quality) are intentionally returned as their
+                        stable ENGLISH keys, exactly like before — app.py
+                        already localizes those itself via
+                        utils.i18n.translate_enum() at the call site, so
+                        translating them here too would double-translate.
+    disease_display  : optional already-localized disease display name
+                        (e.g. from utils.i18n.disease_display_name) to use
+                        inside the ai_summary sentence instead of the raw
+                        `predicted_class` key. Falls back to a title-cased
+                        version of `predicted_class` if omitted.
 
     Returns
     -------
@@ -149,7 +169,8 @@ def advanced_health_dashboard(
         recovery_potential : label + color
         confidence_meter    : rounded percentage for gauge display
         leaf_quality        : label + color
-        ai_summary          : short natural-language paragraph
+        ai_summary          : short natural-language paragraph, localized
+                               to `lang`
     """
     is_healthy = predicted_class.lower() in ("healthy", "normal")
     severity_pct = severity_result["percentage"]
@@ -193,20 +214,19 @@ def advanced_health_dashboard(
     else:
         leaf_quality, lq_color = "Poor", "#e74c3c"
 
-    # ── AI-generated health summary ────────────────────────────
-    disease_name = predicted_class.replace("_", " ").title()
-    if is_healthy:
-        ai_summary = (
-            f"This plant shows no disease indicators. Confidence in this "
-            f"assessment is {confidence_meter}%. Continue routine monitoring."
-        )
-    else:
-        ai_summary = (
-            f"{disease_name} detected with {confidence_meter}% confidence. "
-            f"Estimated severity is {severity_result['label']} ({severity_pct}%), "
-            f"placing crop health at {health_score}/100 ({health_result['category']}). "
-            f"Recovery potential is assessed as {recovery_label.lower()} with prompt treatment."
-        )
+    # ── AI-generated health summary (localized to `lang`) ───────
+    disease_name = disease_display or predicted_class.replace("_", " ").title()
+    ai_summary = health_ai_summary_text(
+        is_healthy=is_healthy,
+        confidence_meter=confidence_meter,
+        disease=disease_name,
+        severity_label=severity_result["label"],
+        severity_pct=severity_pct,
+        health_score=health_score,
+        health_category=health_result["category"],
+        recovery_label=recovery_label,
+        lang=lang,
+    )
 
     return {
         "risk_indicator": risk_indicator,
