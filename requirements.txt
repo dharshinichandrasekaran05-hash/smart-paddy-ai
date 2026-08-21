@@ -1,6 +1,6 @@
 streamlit==1.41.0
 tensorflow==2.13.0
-tf-keras==2.15.0
+tf-keras==2.13.0
 numpy==1.24.3
 Pillow==10.4.0
 opencv-python-headless==4.8.1.78
@@ -12,3 +12,5 @@ reportlab==4.2.5
 gTTS==2.5.3
 pandas==2.0.3
 tqdm==4.66.5
+requests==2.32.3
+google-generativeai==0.8.5
