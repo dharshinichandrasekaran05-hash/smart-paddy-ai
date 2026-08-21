@@ -1211,6 +1211,30 @@ _TREATMENT_NAME_RAW = {
 }
 
 
+# Non-chemical treatment actions are translated; scientific and chemical
+# product names intentionally remain unchanged.
+_TREATMENT_NAME_RAW.update({
+    "Remove & destroy infected plants": {
+        "tamil": "பாதிக்கப்பட்ட செடிகளை அகற்றி அழிக்கவும்", "telugu": "సోకిన మొక్కలను తొలగించి నాశనం చేయండి", "kannada": "ಸೋಂಕಿತ ಸಸ್ಯಗಳನ್ನು ತೆಗೆದು ನಾಶಪಡಿಸಿ", "malayalam": "രോഗം ബാധിച്ച ചെടികൾ നീക്കം ചെയ്ത് നശിപ്പിക്കുക", "hindi": "संक्रमित पौधों को हटाकर नष्ट करें", "bengali": "আক্রান্ত গাছ সরিয়ে ধ্বংস করুন", "marathi": "संक्रमित झाडे काढून नष्ट करा", "gujarati": "ચેપગ્રસ્ત છોડ દૂર કરીને નાશ કરો", "punjabi": "ਪ੍ਰਭਾਵਿਤ ਪੌਦਿਆਂ ਨੂੰ ਹਟਾ ਕੇ ਨਸ਼ਟ ਕਰੋ", "odia": "ସଂକ୍ରମିତ ଗଛଗୁଡ଼ିକୁ କାଢ଼ି ନଷ୍ଟ କରନ୍ତୁ"},
+    "Neem-based pesticide": {
+        "tamil": "வேப்பம் சார்ந்த பூச்சிக்கொல்லி", "telugu": "వేప ఆధారిత పురుగుమందు", "kannada": "ಬೇವಿನ ಆಧಾರಿತ ಕೀಟನಾಶಕ", "malayalam": "വേപ്പ് അധിഷ്ഠിത കീടനാശിനി", "hindi": "नीम आधारित कीटनाशक", "bengali": "নিম-ভিত্তিক কীটনাশক", "marathi": "कडुनिंबावर आधारित कीटकनाशक", "gujarati": "લીમડા આધારિત જંતુનાશક", "punjabi": "ਨੀਮ-ਅਧਾਰਿਤ ਕੀਟਨਾਸ਼ਕ", "odia": "ନିମ୍ବ ଆଧାରିତ କୀଟନାଶକ"},
+    "Hot-water seed treatment (52°C, 10 min)": {
+        "tamil": "சூடுநீர் விதை சிகிச்சை (52°C, 10 நிமிடம்)", "telugu": "వేడి నీటి విత్తన శుద్ధి (52°C, 10 నిమిషాలు)", "kannada": "ಬಿಸಿ ನೀರಿನ ಬೀಜ ಸಂಸ್ಕರಣೆ (52°C, 10 ನಿಮಿಷ)", "malayalam": "ചൂടുവെള്ള വിത്ത് ചികിത്സ (52°C, 10 മിനിറ്റ്)", "hindi": "गर्म पानी बीज उपचार (52°C, 10 मिनट)", "bengali": "গরম জলে বীজ শোধন (52°C, ১০ মিনিট)", "marathi": "गरम पाण्याची बीजप्रक्रिया (52°C, 10 मिनिटे)", "gujarati": "ગરમ પાણી બીજ સારવાર (52°C, 10 મિનિટ)", "punjabi": "ਗਰਮ ਪਾਣੀ ਬੀਜ ਇਲਾਜ (52°C, 10 ਮਿੰਟ)", "odia": "ଗରମ ପାଣି ବୀଜ ଚିକିତ୍ସା (52°C, 10 ମିନିଟ)"},
+    "Certified disease-free seed": {
+        "tamil": "சான்றளிக்கப்பட்ட நோயற்ற விதை", "telugu": "ధృవీకరించిన వ్యాధి రహిత విత్తనం", "kannada": "ಪ್ರಮಾಣೀಕೃತ ರೋಗರಹಿತ ಬೀಜ", "malayalam": "സാക്ഷ്യപ്പെടുത്തിയ രോഗരഹിത വിത്ത്", "hindi": "प्रमाणित रोगमुक्त बीज", "bengali": "প্রত্যয়িত রোগমুক্ত বীজ", "marathi": "प्रमाणित रोगमुक्त बियाणे", "gujarati": "પ્રમાણિત રોગમુક્ત બીજ", "punjabi": "ਪ੍ਰਮਾਣਿਤ ਰੋਗ-ਮੁਕਤ ਬੀਜ", "odia": "ପ୍ରମାଣିତ ରୋଗମୁକ୍ତ ବୀଜ"},
+    "Trichogramma japonicum (biological)": {
+        "tamil": "Trichogramma japonicum (உயிரியல்)", "telugu": "Trichogramma japonicum (జీవ నియంత్రణ)", "kannada": "Trichogramma japonicum (ಜೈವಿಕ ನಿಯಂತ್ರಣ)", "malayalam": "ട്രൈക്കോഗ്രാമ ജപ്പോണിക്കം (ജൈവ നിയന്ത്രണം)", "hindi": "Trichogramma japonicum (जैविक नियंत्रण)", "bengali": "Trichogramma japonicum (জৈব নিয়ন্ত্রণ)", "marathi": "Trichogramma japonicum (जैविक नियंत्रण)", "gujarati": "Trichogramma japonicum (જૈવિક નિયંત્રણ)", "punjabi": "Trichogramma japonicum (ਜੈਵਿਕ ਨਿਯੰਤਰਣ)", "odia": "Trichogramma japonicum (ଜୈବିକ ନିୟନ୍ତ୍ରଣ)"},
+    "Clip & destroy egg masses": {
+        "tamil": "முட்டைக் கூட்டங்களை வெட்டி அழிக்கவும்", "telugu": "గుడ్ల సమూహాలను కత్తిరించి నాశనం చేయండి", "kannada": "ಮೊಟ್ಟೆ ಗುಂಪುಗಳನ್ನು ಕತ್ತರಿಸಿ ನಾಶಪಡಿಸಿ", "malayalam": "മുട്ടക്കൂട്ടങ്ങൾ മുറിച്ച് നശിപ്പിക്കുക", "hindi": "अंडों के समूह काटकर नष्ट करें", "bengali": "ডিমের গুচ্ছ কেটে ধ্বংস করুন", "marathi": "अंड्यांचे पुंजके कापून नष्ट करा", "gujarati": "ઈંડાના સમૂહ કાપીને નાશ કરો", "punjabi": "ਅੰਡਿਆਂ ਦੇ ਗੁੱਛੇ ਕੱਟ ਕੇ ਨਸ਼ਟ ਕਰੋ", "odia": "ଅଣ୍ଡା ଗୁଚ୍ଛ କାଟି ନଷ୍ଟ କରନ୍ତୁ"},
+    "Hand-picking adults": {
+        "tamil": "வயது வந்த பூச்சிகளை கையால் அகற்றவும்", "telugu": "పెద్ద పురుగులను చేతితో తొలగించండి", "kannada": "ವಯಸ್ಕ ಕೀಟಗಳನ್ನು ಕೈಯಿಂದ ತೆಗೆದುಹಾಕಿ", "malayalam": "പ്രാണികളെ കൈകൊണ്ട് പെറുക്കിമാറ്റുക", "hindi": "वयस्क कीटों को हाथ से हटाएं", "bengali": "পূর্ণবয়স্ক পোকা হাতে তুলে ফেলুন", "marathi": "प्रौढ कीटक हाताने काढा", "gujarati": "પુખ્ત જીવાતોને હાથથી દૂર કરો", "punjabi": "ਵੱਡੇ ਕੀਟਾਂ ਨੂੰ ਹੱਥ ਨਾਲ ਹਟਾਓ", "odia": "ବୟସ୍କ କୀଟଗୁଡ଼ିକୁ ହାତରେ କାଢ଼ନ୍ତୁ"},
+    "Field drainage improvement": {
+        "tamil": "வயல் வடிகால் மேம்பாடு", "telugu": "పొలం నీటి పారుదల మెరుగుదల", "kannada": "ಹೊಲದ ಒಳಚರಂಡಿ ಸುಧಾರಣೆ", "malayalam": "വയൽ നീർവാർച്ച മെച്ചപ്പെടുത്തൽ", "hindi": "खेत जल निकासी सुधार", "bengali": "ক্ষেতের নিষ্কাশন উন্নতি", "marathi": "शेतातील पाण्याचा निचरा सुधारणे", "gujarati": "ખેતરનું પાણી નિકાલ સુધારણા", "punjabi": "ਖੇਤ ਦੀ ਨਿਕਾਸੀ ਸੁਧਾਰ", "odia": "କ୍ଷେତ ଜଳ ନିଷ୍କାସନ ଉନ୍ନତି"},
+    "No treatment required": {
+        "tamil": "சிகிச்சை தேவையில்லை", "telugu": "చికిత్స అవసరం లేదు", "kannada": "ಚಿಕಿತ್ಸೆ ಅಗತ್ಯವಿಲ್ಲ", "malayalam": "ചികിത്സ ആവശ്യമില്ല", "hindi": "उपचार आवश्यक नहीं", "bengali": "চিকিৎসার প্রয়োজন নেই", "marathi": "उपचाराची गरज नाही", "gujarati": "સારવાર જરૂરી નથી", "punjabi": "ਇਲਾਜ ਦੀ ਲੋੜ ਨਹੀਂ", "odia": "ଚିକିତ୍ସା ଆବଶ୍ୟକ ନାହିଁ"},
+})
+
+
 def translate_treatment_name(name: str, lang: str) -> str:
     """Translate a treatment 'name' field. Chemical names pass through unchanged."""
     lang = resolve_lang(lang)
@@ -1227,6 +1251,23 @@ def translate_treatment_stage(stage: str, lang: str) -> str:
     if block is None:
         return stage
     return _pick_or(block, lang, stage)
+
+
+_TREATMENT_RECOVERY_RAW = {
+    "Preventive": {"tamil": "தடுப்பு", "telugu": "నివారణ", "kannada": "ತಡೆಗಟ್ಟುವಿಕೆ", "malayalam": "പ്രതിരോധം", "hindi": "रोकथाम", "bengali": "প্রতিরোধমূলক", "marathi": "प्रतिबंधात्मक", "gujarati": "નિવારક", "punjabi": "ਰੋਕਥਾਮੀ", "odia": "ପ୍ରତିରୋଧକ"},
+    "Immediate (field-level)": {"tamil": "உடனடி (வயல் நிலை)", "telugu": "తక్షణం (పొలం స్థాయి)", "kannada": "ತಕ್ಷಣ (ಹೊಲ ಮಟ್ಟದಲ್ಲಿ)", "malayalam": "ഉടൻ (വയൽ തലത്തിൽ)", "hindi": "तत्काल (खेत स्तर)", "bengali": "তাৎক্ষণিক (ক্ষেত পর্যায়ে)", "marathi": "तात्काळ (शेत पातळीवर)", "gujarati": "તાત્કાલિક (ખેતર સ્તર)", "punjabi": "ਤੁਰੰਤ (ਖੇਤ ਪੱਧਰ)", "odia": "ତୁରନ୍ତ (କ୍ଷେତ ସ୍ତରରେ)"},
+    "Ongoing (manual)": {"tamil": "தொடர்ந்து (கைமுறை)", "telugu": "కొనసాగింపు (మాన్యువల్)", "kannada": "ಮುಂದುವರಿಕೆ (ಕೈಯಿಂದ)", "malayalam": "തുടർച്ചയായി (കൈകൊണ്ട്)", "hindi": "जारी (हाथ से)", "bengali": "চলমান (হাতে)", "marathi": "सुरू (हाताने)", "gujarati": "ચાલુ (હાથથી)", "punjabi": "ਜਾਰੀ (ਹੱਥ ਨਾਲ)", "odia": "ଚାଲୁ (ହାତରେ)"},
+    "N/A": {"tamil": "பொருந்தாது", "telugu": "వర్తించదు", "kannada": "ಅನ್ವಯಿಸುವುದಿಲ್ಲ", "malayalam": "ബാധകമല്ല", "hindi": "लागू नहीं", "bengali": "প্রযোজ্য নয়", "marathi": "लागू नाही", "gujarati": "લાગુ પડતું નથી", "punjabi": "ਲਾਗੂ ਨਹੀਂ", "odia": "ଲାଗୁ ହୁଏ ନାହିଁ"},
+}
+
+
+def translate_treatment_recovery(value: str, lang: str) -> str:
+    """Translate non-numeric recovery labels while preserving numeric ranges."""
+    lang = resolve_lang(lang)
+    block = _TREATMENT_RECOVERY_RAW.get(value)
+    if block is None:
+        return value
+    return _pick_or(block, lang, value)
 
 
 # ═══════════════════════════════════════════════════════════════
