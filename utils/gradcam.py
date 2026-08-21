@@ -14,18 +14,37 @@ import tensorflow as tf
 from PIL import Image
 
 
-def _find_last_conv_layer(model) -> str:
-    """Return the last available Conv2D layer name."""
-    for layer in reversed(model.layers):
-        if isinstance(layer, tf.keras.layers.Conv2D):
-            return layer.name
+def _find_last_conv_layer(model):
+    """Find a deep spatial feature layer, including nested backbone layers.
 
-        if hasattr(layer, "layers"):
-            for sublayer in reversed(layer.layers):
-                if isinstance(sublayer, tf.keras.layers.Conv2D):
-                    return sublayer.name
+    Very late 1x1/4x4 layers often produce a noisy or overly broad map, so
+    prefer the deepest convolutional feature map with at least 7x7 spatial
+    resolution. Fall back to the deepest available spatial convolution.
+    """
+    candidates = []
 
-    raise ValueError("No Conv2D layer found in model; Grad-CAM is unavailable.")
+    def walk(layer):
+        children = getattr(layer, "layers", None)
+        if children:
+            for child in children:
+                walk(child)
+        cls = layer.__class__.__name__
+        if cls not in {"Conv2D", "DepthwiseConv2D", "SeparableConv2D"}:
+            return
+        try:
+            shape = tuple(layer.output.shape)
+            height, width = shape[1], shape[2]
+            if height is not None and width is not None:
+                candidates.append((int(height >= 7 and width >= 7), len(candidates), layer))
+        except Exception:
+            pass
+
+    walk(model)
+    if not candidates:
+        raise ValueError("No spatial convolutional layer found; Grad-CAM is unavailable.")
+
+    preferred = [item for item in candidates if item[0] == 1]
+    return (preferred or candidates)[-1][2]
 
 
 def _model_input_size(model):
@@ -71,9 +90,10 @@ def compute_gradcam(
     if layer_name is None:
         layer_name = _find_last_conv_layer(model)
 
+    target_layer = model.get_layer(layer_name) if isinstance(layer_name, str) else layer_name
     grad_model = tf.keras.models.Model(
         inputs=model.inputs,
-        outputs=[model.get_layer(layer_name).output, model.output],
+        outputs=[target_layer.output, model.output],
     )
 
     with tf.GradientTape() as tape:
@@ -90,10 +110,15 @@ def compute_gradcam(
     heatmap = tf.squeeze(heatmap)
     heatmap = tf.nn.relu(heatmap).numpy()
 
-    maximum = float(heatmap.max())
-    if maximum > 0:
-        heatmap = heatmap / maximum
-
+    heatmap = np.nan_to_num(heatmap, nan=0.0, posinf=0.0, neginf=0.0)
+    heatmap = cv2.GaussianBlur(heatmap, (0, 0), sigmaX=0.65)
+    positive = heatmap[heatmap > 0]
+    if positive.size:
+        low = float(np.percentile(positive, 10))
+        high = float(np.percentile(positive, 98))
+        if high > low:
+            heatmap = (heatmap - low) / (high - low)
+    heatmap = np.clip(heatmap, 0.0, 1.0)
     return heatmap.astype(np.float32)
 
 
