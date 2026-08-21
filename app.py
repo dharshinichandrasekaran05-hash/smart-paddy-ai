@@ -55,6 +55,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Decorative-only layer: no widgets, state, callbacks, or app logic.
+st.markdown(r'''<style>
+@keyframes paddy-leaf-fall{0%{top:-30px;transform:translateX(0) rotate(0deg);opacity:0}8%{opacity:.84}50%{transform:translateX(24px) rotate(150deg)}92%{opacity:.84}100%{top:105vh;transform:translateX(-18px) rotate(320deg);opacity:0}}
+.paddy-sidebar-leaves{position:fixed;left:0;top:0;width:340px;height:100vh;overflow:hidden;pointer-events:none;z-index:1}
+.paddy-leaf{position:absolute;top:-30px;color:#8fca7c;font-size:17px;line-height:1;opacity:.84;pointer-events:none;animation:paddy-leaf-fall 11s linear infinite}
+.paddy-leaf:nth-child(1){left:12%;animation-delay:0s;animation-duration:9s}.paddy-leaf:nth-child(2){left:30%;animation-delay:2.2s;animation-duration:12s}.paddy-leaf:nth-child(3){left:48%;animation-delay:4.7s;animation-duration:10s}.paddy-leaf:nth-child(4){left:66%;animation-delay:7.1s;animation-duration:14s}.paddy-leaf:nth-child(5){left:81%;animation-delay:1.1s;animation-duration:11s}.paddy-leaf:nth-child(6){left:21%;animation-delay:8.3s;animation-duration:13s}
+.paddy-grass{position:fixed;inset:auto 0 0;width:100%;height:125px;z-index:-1;pointer-events:none}
+</style><div class="paddy-sidebar-leaves" aria-hidden="true"><span class="paddy-leaf">🍃</span><span class="paddy-leaf">🍃</span><span class="paddy-leaf">🍃</span><span class="paddy-leaf">🍃</span><span class="paddy-leaf">🍃</span><span class="paddy-leaf">🍃</span></div><svg class="paddy-grass" viewBox="0 0 1600 125" preserveAspectRatio="none" aria-hidden="true"><path fill="#0D1A0C" d="M0 72Q180 35 360 72T720 65T1080 70T1440 55T1600 65V125H0Z"/><path fill="#152B14" d="M0 93Q220 63 420 91T820 84T1220 89T1600 76V125H0Z"/><path fill="#1E3D1A" d="M0 108Q260 89 510 108T1000 101T1360 105T1600 96V125H0Z"/><g stroke="#2A4F22" stroke-width="2" fill="none" stroke-linecap="round"><path d="M120 122q8-25 3-45M260 123q-5-20 5-39M470 124q7-29 2-52M690 124q-4-25 6-45M910 123q8-24 2-48M1160 124q-6-22 4-43M1390 123q7-26 2-50M1510 124q-4-18 4-37"/></g></svg>''', unsafe_allow_html=True)
+
 # ═══════════════════════════════════════════════════════════════
 # CONSTANTS
 # ═══════════════════════════════════════════════════════════════
