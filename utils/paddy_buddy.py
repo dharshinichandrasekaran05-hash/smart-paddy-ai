@@ -510,18 +510,13 @@ def render_paddy_buddy(lang: str = "english", mood: str | None = None, speech: s
             unsafe_allow_html=True,
         )
         if st.button("🌾", key="paddybuddy_toggle_btn", help=ui_text("paddybuddy_panel_title", lang)):
-            st.session_state.pb_open = not is_open
-            if not is_open:
-                # Every opening starts a fresh assistant session.
-                st.session_state.pb_history = []
-                st.session_state.pb_greeted_open = False
-                st.session_state.pb_greeting_lang = lang
-                st.session_state.pb_mood = "idle"
-            else:
-                # Closing discards all previous searches and replies.
-                st.session_state.pb_history = []
-                st.session_state.pb_greeted_open = False
-                st.session_state.pb_greeting_lang = None
+            # PaddyBuddy is a launcher only. The app's existing Farming
+            # Assistant page remains the single chatbot interface.
+            st.session_state.pb_go_to_farming = True
+            st.session_state.pb_open = False
+            st.session_state.pb_history = []
+            st.session_state.pb_greeted_open = False
+            st.session_state.pb_greeting_lang = None
             st.rerun()
 
 
