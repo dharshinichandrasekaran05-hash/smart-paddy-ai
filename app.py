@@ -1126,7 +1126,9 @@ if "🔬 Diagnosis" in page:
             unsafe_allow_html=True,
         )
         treat_rows = [{
-            L["treatment_col_option"]:        translate_treatment_name(t["name"], lang),
+            # Keep treatment/product names exactly as stored in the disease-specific
+            # knowledge base; translate only surrounding table fields.
+            L["treatment_col_option"]:        str(t.get("name", "Consult local agriculture extension officer")),
             L["treatment_col_priority"]:      translate_enum(str(t["priority"]), lang),
             L["treatment_col_success_rate"]:  f"{t['success_rate']}%",
             L["treatment_col_recovery_time"]: translate_treatment_recovery(str(t["recovery_days"]), lang),
