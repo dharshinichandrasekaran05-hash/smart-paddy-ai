@@ -648,9 +648,23 @@ with st.sidebar:
         return f"{emoji} {label_text}"
 
     allowed_pages = ADMIN_PAGES if st.session_state.is_admin else GUEST_PAGES
+
+    # The floating Panda is a launcher for this existing Farming Assistant
+    # page. Set the radio widget state before it is created, then let the
+    # original page rendering below handle the chatbot exactly as before.
+    if st.session_state.pop("pb_go_to_farming", False):
+        st.session_state["main_page"] = "💬 Chatbot"
+
+    selected_page = st.session_state.get("main_page", allowed_pages[0])
+    if selected_page not in allowed_pages:
+        selected_page = allowed_pages[0]
+
     page = st.radio(
         L["navigate_label"], allowed_pages,
-        format_func=_page_display, label_visibility="collapsed",
+        index=allowed_pages.index(selected_page),
+        format_func=_page_display,
+        label_visibility="collapsed",
+        key="main_page",
     )
 
     st.markdown("---")
@@ -1744,8 +1758,6 @@ elif "📋 Full History" in page:
 # Performance, and — for admins — Analytics/Research/Admin/History
 # too), always reflecting the currently selected sidebar language.
 render_paddy_buddy(lang, mood=st.session_state.get("pb_mood", "idle"))
-render_paddy_chat_panel(
-    lang,
-    diag_context=st.session_state.get("diagnosis_context"),
-    chat_fn=smart_farming_bot,
-)
+# PaddyBuddy is intentionally launcher-only. The existing Farming
+# Assistant page above is the single chatbot interface, so no duplicate
+# floating chat panel is rendered here.
