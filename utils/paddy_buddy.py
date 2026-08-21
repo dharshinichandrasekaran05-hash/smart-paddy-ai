@@ -132,14 +132,14 @@ _CSS = """
 .st-key-paddybuddy_panel {
     position: fixed !important;
     right: 24px !important;
-    bottom: 132px !important;
+    bottom: 184px !important;
     z-index: 9999 !important;
     width: min(420px, calc(100vw - 48px)) !important;
     min-width: 0 !important;
     max-width: 420px !important;
-    height: min(620px, calc(100vh - 170px)) !important;
+    height: min(590px, calc(100vh - 220px)) !important;
     min-height: 420px !important;
-    max-height: calc(100vh - 170px) !important;
+    max-height: calc(100vh - 220px) !important;
     overflow: hidden !important;
     background: #fbfdf8;
     border: 1px solid #cdeccb;
@@ -323,7 +323,7 @@ _CSS = """
         height: min(620px, calc(100vh - 132px)) !important;
         min-height: 390px !important;
         right: 12px !important;
-        bottom: 104px !important;
+        bottom: 148px !important;
         padding: 12px !important;
     }
     .pb-bubble {
@@ -347,73 +347,75 @@ _CSS = """
 
 
 def _character_svg(mood: str, waving: bool) -> str:
-    """
-    Build the PaddyBuddy SVG for a given mood. Original cartoon design —
-    a round-faced little agricultural worker with a conical farmer hat,
-    holding a paddy (rice) stalk. Facial expression changes per mood;
-    everything else (hat, body, stalk) stays constant so the character
-    reads as the same consistent mascot across states.
-    """
-    # Eyes / mouth per mood (all coordinates hand-tuned for the 120x120 canvas)
+    """Build a friendly agricultural-worker panda mascot as inline SVG."""
     if mood == "happy":
         eyes = (
-            '<ellipse class="pb-eye" cx="46" cy="60" rx="4.2" ry="5.5" fill="#2d3436"/>'
-            '<ellipse class="pb-eye" cx="74" cy="60" rx="4.2" ry="5.5" fill="#2d3436"/>'
+            '<ellipse class="pb-eye" cx="46" cy="58" rx="4" ry="5" fill="#111827"/>'
+            '<ellipse class="pb-eye" cx="74" cy="58" rx="4" ry="5" fill="#111827"/>'
         )
-        mouth = '<path d="M45 72 Q60 86 75 72" stroke="#2d3436" stroke-width="3.4" fill="none" stroke-linecap="round"/>'
+        mouth = '<path d="M46 72 Q60 84 74 72" stroke="#111827" stroke-width="3.4" fill="none" stroke-linecap="round"/>'
     elif mood == "concerned":
         eyes = (
-            '<ellipse class="pb-eye" cx="46" cy="61" rx="4" ry="5" fill="#2d3436"/>'
-            '<ellipse class="pb-eye" cx="74" cy="61" rx="4" ry="5" fill="#2d3436"/>'
-            '<path d="M40 53 Q46 49 52 53" stroke="#2d3436" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
-            '<path d="M68 53 Q74 49 80 53" stroke="#2d3436" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
+            '<ellipse class="pb-eye" cx="46" cy="59" rx="4" ry="5" fill="#111827"/>'
+            '<ellipse class="pb-eye" cx="74" cy="59" rx="4" ry="5" fill="#111827"/>'
+            '<path d="M40 50 Q46 46 52 50" stroke="#111827" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
+            '<path d="M68 50 Q74 46 80 50" stroke="#111827" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
         )
-        mouth = '<path d="M48 76 Q60 70 72 76" stroke="#2d3436" stroke-width="3.2" fill="none" stroke-linecap="round"/>'
+        mouth = '<path d="M48 76 Q60 70 72 76" stroke="#111827" stroke-width="3.2" fill="none" stroke-linecap="round"/>'
     elif mood == "curious":
         eyes = (
-            '<ellipse class="pb-eye" cx="46" cy="59" rx="5" ry="6.4" fill="#2d3436"/>'
-            '<ellipse class="pb-eye" cx="74" cy="59" rx="5" ry="6.4" fill="#2d3436"/>'
+            '<ellipse class="pb-eye" cx="46" cy="57" rx="5" ry="6" fill="#111827"/>'
+            '<ellipse class="pb-eye" cx="74" cy="57" rx="5" ry="6" fill="#111827"/>'
         )
-        mouth = '<ellipse cx="60" cy="76" rx="6" ry="5" fill="#2d3436"/>'
+        mouth = '<ellipse cx="60" cy="76" rx="6" ry="5" fill="#111827"/>'
     elif mood == "thinking":
         eyes = (
-            '<path d="M41 60 L51 60" stroke="#2d3436" stroke-width="3.2" stroke-linecap="round"/>'
-            '<ellipse class="pb-eye" cx="74" cy="59" rx="4.2" ry="5.5" fill="#2d3436"/>'
+            '<path d="M41 58 L51 58" stroke="#111827" stroke-width="3.2" stroke-linecap="round"/>'
+            '<ellipse class="pb-eye" cx="74" cy="57" rx="4" ry="5" fill="#111827"/>'
         )
-        mouth = '<circle cx="60" cy="77" r="3.4" fill="#2d3436"/>'
-    else:  # idle / default friendly face
+        mouth = '<circle cx="60" cy="77" r="3.4" fill="#111827"/>'
+    else:
         eyes = (
-            '<ellipse class="pb-eye" cx="46" cy="60" rx="4.2" ry="5.5" fill="#2d3436"/>'
-            '<ellipse class="pb-eye" cx="74" cy="60" rx="4.2" ry="5.5" fill="#2d3436"/>'
+            '<ellipse class="pb-eye" cx="46" cy="58" rx="4" ry="5" fill="#111827"/>'
+            '<ellipse class="pb-eye" cx="74" cy="58" rx="4" ry="5" fill="#111827"/>'
         )
-        mouth = '<path d="M47 73 Q60 83 73 73" stroke="#2d3436" stroke-width="3.2" fill="none" stroke-linecap="round"/>'
+        mouth = '<path d="M47 72 Q60 82 73 72" stroke="#111827" stroke-width="3.2" fill="none" stroke-linecap="round"/>'
 
     stalk_class = "pb-wave-group" if waving else ""
+    arm_wave = 'transform="rotate(-12 91 91)"' if waving else ''
 
-    return f'''
-<svg viewBox="0 0 120 130" width="76" height="82" xmlns="http://www.w3.org/2000/svg">
-  <!-- body -->
-  <ellipse cx="60" cy="104" rx="34" ry="22" fill="#5fae5f"/>
-  <ellipse cx="60" cy="100" rx="27" ry="16" fill="#79c479"/>
-  <!-- head -->
-  <circle cx="60" cy="62" r="38" fill="#f6c98a"/>
-  <circle cx="42" cy="70" r="6.5" fill="#f2a86f" opacity="0.55"/>
-  <circle cx="78" cy="70" r="6.5" fill="#f2a86f" opacity="0.55"/>
-  <!-- conical farmer hat -->
-  <path d="M18 40 Q60 -6 102 40 Q60 30 18 40 Z" fill="#d9a441"/>
-  <path d="M14 42 Q60 26 106 42 L100 48 Q60 34 20 48 Z" fill="#c68f30"/>
+    return f"""
+<svg viewBox="0 0 120 132" width="76" height="84" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agricultural worker panda">
+  <!-- green agricultural-worker body and overalls -->
+  <ellipse cx="60" cy="108" rx="36" ry="22" fill="#2f855a"/>
+  <path d="M36 94 Q60 86 84 94 L88 126 Q60 136 32 126 Z" fill="#276749"/>
+  <path d="M40 94 L51 91 L56 112 L45 113 Z M80 94 L69 91 L64 112 L75 113 Z" fill="#68b684"/>
+  <circle cx="60" cy="110" r="3" fill="#d9a441"/>
+  <!-- panda ears -->
+  <circle cx="31" cy="28" r="16" fill="#111827"/>
+  <circle cx="89" cy="28" r="16" fill="#111827"/>
+  <!-- panda head -->
+  <circle cx="60" cy="62" r="39" fill="#f8fafc"/>
+  <ellipse cx="42" cy="59" rx="13" ry="17" fill="#111827" transform="rotate(25 42 59)"/>
+  <ellipse cx="78" cy="59" rx="13" ry="17" fill="#111827" transform="rotate(-25 78 59)"/>
+  <!-- farmer hat -->
+  <path d="M20 39 Q60 -7 100 39 Q60 28 20 39 Z" fill="#d9a441"/>
+  <path d="M15 41 Q60 27 105 41 L99 49 Q60 36 21 49 Z" fill="#b7791f"/>
+  <path d="M31 38 Q60 31 89 38" stroke="#2f855a" stroke-width="4" fill="none"/>
   <!-- face -->
   {eyes}
+  <ellipse cx="60" cy="69" rx="7" ry="5" fill="#111827"/>
   {mouth}
-  <!-- little paddy (rice) stalk held to the side -->
-  <g class="{stalk_class}">
-    <line x1="94" y1="96" x2="106" y2="66" stroke="#3f8f4f" stroke-width="3.4" stroke-linecap="round"/>
-    <ellipse cx="107" cy="60" rx="4.2" ry="7" fill="#e8d27a" transform="rotate(18 107 60)"/>
-    <ellipse cx="112" cy="67" rx="4.2" ry="7" fill="#e8d27a" transform="rotate(35 112 67)"/>
-    <ellipse cx="101" cy="66" rx="4.2" ry="7" fill="#f2df9a" transform="rotate(-5 101 66)"/>
+  <!-- waving arm and paddy stalk -->
+  <g class="{stalk_class}" {arm_wave}>
+    <path d="M91 103 Q101 91 101 78" stroke="#f8fafc" stroke-width="9" stroke-linecap="round"/>
+    <path d="M101 84 L108 64" stroke="#3f8f4f" stroke-width="3.4" stroke-linecap="round"/>
+    <ellipse cx="109" cy="59" rx="4.2" ry="7" fill="#e8d27a" transform="rotate(18 109 59)"/>
+    <ellipse cx="114" cy="66" rx="4.2" ry="7" fill="#e8d27a" transform="rotate(35 114 66)"/>
+    <ellipse cx="103" cy="65" rx="4.2" ry="7" fill="#f2df9a" transform="rotate(-5 103 65)"/>
   </g>
 </svg>
-'''
+"""
 
 
 _DEFAULT_SPEECH_KEYS = {
@@ -465,10 +467,13 @@ def render_paddy_buddy(lang: str = "english", mood: str | None = None, speech: s
         dock = st.container()
 
     with dock:
-        st.markdown(
-            f'<div class="pb-bubble">{speech}</div>',
-            unsafe_allow_html=True,
-        )
+        # Keep the speech bubble outside the open panel. This prevents it
+        # from covering the input and Close button on narrow screens.
+        if not is_open:
+            st.markdown(
+                f'<div class="pb-bubble">{speech}</div>',
+                unsafe_allow_html=True,
+            )
         st.markdown(
             f'<div class="pb-avatar-wrap">{_character_svg(mood, waving=not is_open)}</div>',
             unsafe_allow_html=True,
@@ -476,9 +481,9 @@ def render_paddy_buddy(lang: str = "english", mood: str | None = None, speech: s
         if st.button("🌾", key="paddybuddy_toggle_btn", help=ui_text("paddybuddy_panel_title", lang)):
             st.session_state.pb_open = not is_open
             if not is_open:
-                # panel is being opened right now
+                # The greeting is kept once in the chat history and is never
+                # appended again merely because the panel is reopened.
                 st.session_state.pb_mood = "idle"
-                st.session_state.pb_greeted_open = False
             st.rerun()
 
 
@@ -491,17 +496,40 @@ def render_paddy_chat_panel(lang: str, diag_context: dict | None, chat_fn) -> No
     if "pb_history" not in st.session_state:
         st.session_state.pb_history = []
 
-    if not st.session_state.get("pb_greeted_open", False):
-        st.session_state.pb_history.append({"role": "bot", "text": ui_text("paddybuddy_chat_open", lang)})
-        st.session_state.pb_greeted_open = True
-        st.session_state.pb_greeting_lang = lang
-    elif (
-        len(st.session_state.pb_history) == 1
-        and st.session_state.pb_history[0]["role"] == "bot"
-        and st.session_state.get("pb_greeting_lang") != lang
-    ):
-        st.session_state.pb_history[0]["text"] = ui_text("paddybuddy_chat_open", lang)
-        st.session_state.pb_greeting_lang = lang
+    # Keep exactly one opening greeting. Streamlit reruns the script after
+    # every widget interaction; reopening the panel must not append another
+    # copy of the same greeting to the visible conversation.
+    greeting = ui_text("paddybuddy_chat_open", lang)
+    cleaned_history = []
+    greeting_seen = False
+    for message in st.session_state.pb_history:
+        text = message.get("text", "")
+        is_greeting = message.get("role") == "bot" and (
+            message.get("pb_system") == "opening_greeting"
+            or text == greeting
+            or text.startswith("Hi there! Ask me anything about your paddy crop.")
+            or text.startswith("🌾 Hi there! Ask me anything about your paddy crop.")
+        )
+        if is_greeting:
+            if greeting_seen:
+                continue
+            greeting_seen = True
+            cleaned_history.append({
+                "role": "bot",
+                "text": greeting,
+                "pb_system": "opening_greeting",
+            })
+        else:
+            cleaned_history.append(message)
+    st.session_state.pb_history = cleaned_history
+    if not greeting_seen:
+        st.session_state.pb_history.insert(0, {
+            "role": "bot",
+            "text": greeting,
+            "pb_system": "opening_greeting",
+        })
+    st.session_state.pb_greeted_open = True
+    st.session_state.pb_greeting_lang = lang
 
     try:
         panel = st.container(key="paddybuddy_panel")
