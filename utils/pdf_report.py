@@ -52,7 +52,10 @@ def _pil_to_rl_image(pil_img: Image.Image, width_cm: float, height_cm: float) ->
 
 
 # ─────────────────────── STYLES ───────────────────────────────
-_FONT_DIR = "/usr/share/fonts/truetype/noto"
+_FONT_DIRS = [
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "fonts", "noto"),
+    "/usr/share/fonts/truetype/noto",
+]
 _FONT_FILES = {
     "english": ("NotoSans-Regular.ttf", "NotoSans-Bold.ttf"),
     "tamil": ("NotoSansTamil-Regular.ttf", "NotoSansTamil-Bold.ttf"),
@@ -71,9 +74,11 @@ _FONT_FILES = {
 def _register_fonts(lang: str):
     """Return a Unicode font pair when available, otherwise safe Latin fallback."""
     regular_file, bold_file = _FONT_FILES.get(lang, _FONT_FILES["english"])
-    regular_path = os.path.join(_FONT_DIR, regular_file)
-    bold_path = os.path.join(_FONT_DIR, bold_file)
-    if not (os.path.exists(regular_path) and os.path.exists(bold_path)):
+    regular_path = next((os.path.join(folder, regular_file) for folder in _FONT_DIRS
+                         if os.path.exists(os.path.join(folder, regular_file))), None)
+    bold_path = next((os.path.join(folder, bold_file) for folder in _FONT_DIRS
+                      if os.path.exists(os.path.join(folder, bold_file))), None)
+    if not regular_path or not bold_path:
         return "Helvetica", "Helvetica-Bold"
     regular_name = f"PaddyUnicode-{lang}"
     bold_name = f"PaddyUnicode-{lang}-Bold"
@@ -379,7 +384,7 @@ def generate_pdf_report(
     ts = datetime.datetime.now().strftime("%d %B %Y  %H:%M:%S")
 
     # ── HEADER ────────────────────────────────────────────────
-    story.append(Paragraph("🌾 Smart Paddy AI", styles["title"]))
+    story.append(Paragraph("Smart Paddy AI", styles["title"]))
     story.append(Paragraph(
         T["report_subtitle"],
         styles["subtitle"]
@@ -389,16 +394,18 @@ def generate_pdf_report(
 
     # Meta table
     meta_data = [
-        [T["report_date"], ts,              T["farmer"], farmer_name or "—"],
-        [T["location"],    location or "—", T["model"],  "EfficientNetB0"],
+        [Paragraph(T["report_date"], styles["label"]), Paragraph(ts, styles["body"]),
+         Paragraph(T["farmer"], styles["label"]), Paragraph(farmer_name or "—", styles["body"])],
+        [Paragraph(T["location"], styles["label"]), Paragraph(location or "—", styles["body"]),
+         Paragraph(T["model"], styles["label"]), Paragraph("EfficientNetB0", styles["body"])],
     ]
     meta_table = Table(meta_data, colWidths=[3 * cm, 5 * cm, 3 * cm, 5 * cm])
     meta_table.setStyle(TableStyle([
         ("FONTSIZE",    (0, 0), (-1, -1), 8),
         ("TEXTCOLOR",   (0, 0), (0, -1), colors.grey),
         ("TEXTCOLOR",   (2, 0), (2, -1), colors.grey),
-        ("FONTNAME",    (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME",    (2, 0), (2, -1), "Helvetica-Bold"),
+        ("FONTNAME",    (0, 0), (0, -1), styles["heading"].fontName),
+        ("FONTNAME",    (2, 0), (2, -1), styles["heading"].fontName),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
     story.append(meta_table)
@@ -444,17 +451,17 @@ def generate_pdf_report(
     sev_bg    = LIME if sev_pct < 31 else (AMBER if sev_pct < 71 else RED)
 
     pred_data = [
-        [T["detected_disease"], disease,
-         T["confidence"],       f"{confidence * 100:.1f}%"],
-        [T["severity"],         f"{sev_label}  ({sev_pct}%)",
-         T["crop_health_index"], f"{health_index['score']}/100  — {health_category}"],
+        [Paragraph(T["detected_disease"], styles["label"]), Paragraph(str(disease), styles["body"]),
+         Paragraph(T["confidence"], styles["label"]), Paragraph(f"{confidence * 100:.1f}%", styles["body"])],
+        [Paragraph(T["severity"], styles["label"]), Paragraph(f"{sev_label}  ({sev_pct}%)", styles["body"]),
+         Paragraph(T["crop_health_index"], styles["label"]), Paragraph(f"{health_index['score']}/100  — {health_category}", styles["body"])],
     ]
     pred_table = Table(pred_data, colWidths=[4 * cm, 5 * cm, 4 * cm, 5 * cm])
     pred_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), GREY),
         ("BACKGROUND", (0, 0), (0, 0), GREEN),
         ("TEXTCOLOR",  (0, 0), (0, 0), WHITE),
-        ("FONTNAME",   (0, 0), (0, 0), "Helvetica-Bold"),
+        ("FONTNAME",   (0, 0), (0, 0), styles["heading"].fontName),
         ("FONTSIZE",   (0, 0), (-1, -1), 9),
         ("ROWBACKGROUNDS", (0, 0), (-1, -1), [GREY, sev_bg]),
         ("BOX",        (0, 0), (-1, -1), 0.5, colors.lightgrey),
@@ -481,7 +488,7 @@ def generate_pdf_report(
     prob_table.setStyle(TableStyle([
         ("BACKGROUND",   (0, 0), (-1, 0), GREEN),
         ("TEXTCOLOR",    (0, 0), (-1, 0), WHITE),
-        ("FONTNAME",     (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME",     (0, 0), (-1, 0), styles["heading"].fontName),
         ("FONTSIZE",     (0, 0), (-1, -1), 8),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, GREY]),
         ("INNERGRID",    (0, 0), (-1, -1), 0.25, colors.lightgrey),
@@ -520,13 +527,13 @@ def generate_pdf_report(
 
     # Fertilizer + irrigation
     adv_data = [
-        [T["fertilizer_advice"], advisory.get("fertilizer", "—")],
-        [T["irrigation_advice"], advisory.get("irrigation", "—")],
+        [Paragraph(T["fertilizer_advice"], styles["label"]), Paragraph(str(advisory.get("fertilizer", "—")), styles["body"])],
+        [Paragraph(T["irrigation_advice"], styles["label"]), Paragraph(str(advisory.get("irrigation", "—")), styles["body"])],
     ]
     adv_table = Table(adv_data, colWidths=[4 * cm, 14 * cm])
     adv_table.setStyle(TableStyle([
         ("BACKGROUND",   (0, 0), (0, -1), LIME),
-        ("FONTNAME",     (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME",     (0, 0), (0, -1), styles["heading"].fontName),
         ("FONTSIZE",     (0, 0), (-1, -1), 9),
         ("INNERGRID",    (0, 0), (-1, -1), 0.25, colors.lightgrey),
         ("BOX",          (0, 0), (-1, -1), 0.5, colors.lightgrey),
