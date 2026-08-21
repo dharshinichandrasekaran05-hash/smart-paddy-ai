@@ -6,6 +6,7 @@
 import os
 import csv
 import json
+import io
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -534,18 +535,36 @@ model, class_names = get_model()
 # ═══════════════════════════════════════════════════════════════
 DOWNY_MILDEW_BOOST = 1.30
 
-def predict_with_fix(image):
+@st.cache_data(show_spinner=False)
+def _cached_prediction(image_bytes: bytes):
+    """Run ML prediction once per image, including across language reruns."""
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     label, confidence, all_probs = predict_image(image)
     probs_array = np.array([all_probs.get(cn, 0.0) for cn in class_names])
     if "downy_mildew" in class_names:
         probs_array[class_names.index("downy_mildew")] *= DOWNY_MILDEW_BOOST
-    probs_array  = probs_array / probs_array.sum()
-    best_idx     = int(np.argmax(probs_array))
-    label        = class_names[best_idx]
-    confidence   = float(probs_array[best_idx])
+    total = float(probs_array.sum()) or 1.0
+    probs_array = probs_array / total
+    best_idx = int(np.argmax(probs_array))
+    label = class_names[best_idx]
+    confidence = float(probs_array[best_idx])
     all_probs_fixed = {cn: round(float(probs_array[i]) * 100, 2)
                        for i, cn in enumerate(class_names)}
     return label, confidence, all_probs_fixed
+
+
+def predict_with_fix(image):
+    """Backward-compatible wrapper used by the existing application flow."""
+    buf = io.BytesIO()
+    image.convert("RGB").save(buf, format="PNG")
+    return _cached_prediction(buf.getvalue())
+
+
+@st.cache_data(show_spinner=False)
+def _cached_gradcam(image_bytes: bytes, class_index: int):
+    """Reuse an existing Grad-CAM when only UI language changes."""
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    return generate_gradcam(model, image, class_index)
 
 # ═══════════════════════════════════════════════════════════════
 # ADVISORY HELPER — renders one language's advisory block + TTS button
@@ -707,17 +726,33 @@ if "🔬 Diagnosis" in page:
     st.markdown(f"<p style='color:#555;font-size:15px'>{L['subtitle']}</p>", unsafe_allow_html=True)
     st.markdown("---")
 
-    uploaded_file = st.file_uploader(L["upload"], type=["jpg", "png", "jpeg"])
+    # Keep the widget identity stable across language changes. The translated
+    # label is rendered separately so changing language cannot clear the file.
+    st.markdown(f"**{L['upload']}**")
+    uploaded_file = st.file_uploader(
+        "Paddy leaf image",
+        type=["jpg", "png", "jpeg"],
+        key="diagnosis_uploader",
+        label_visibility="collapsed",
+    )
 
     if uploaded_file:
-        image = Image.open(uploaded_file).convert("RGB")
+        image_bytes = uploaded_file.getvalue()
+        st.session_state["diagnosis_image_bytes"] = image_bytes
+    else:
+        image_bytes = st.session_state.get("diagnosis_image_bytes")
+        if image_bytes:
+            uploaded_file = io.BytesIO(image_bytes)
+
+    if uploaded_file:
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         # PaddyBuddy reaction: curious while a fresh leaf image just arrived
         st.session_state.pb_mood = "curious"
 
         with st.spinner(L["analysing_leaf"]):
             st.session_state.pb_mood = "thinking"
-            label, confidence, all_probs = predict_with_fix(image)
+            label, confidence, all_probs = _cached_prediction(image_bytes)
 
         # ── Resolve final username for logging ─────────────────
         # Priority: typed Farmer Name > session username > "Guest"
@@ -758,7 +793,7 @@ if "🔬 Diagnosis" in page:
         with st.spinner(L["generating_heatmap"]):
             try:
                 class_index = class_names.index(label)
-                orig_img, cam_img = generate_gradcam(model, image, class_index)
+                orig_img, cam_img = _cached_gradcam(image_bytes, class_index)
                 gradcam_available = True
             except Exception as e:
                 gradcam_available = False
