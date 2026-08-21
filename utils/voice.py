@@ -16,7 +16,7 @@ import streamlit as st
 from gtts import gTTS
 from gtts.lang import tts_langs
 
-from utils.i18n import tts_code, resolve_lang, native_name
+from utils.i18n import tts_code, resolve_lang, native_name, ui_text
 
 # gTTS accepts a "tld" for some accent variants; only English benefits from
 # the .co.in accent used previously, so we special-case it and default to
@@ -53,7 +53,7 @@ def speak(text: str, lang: str = "english") -> None:
     """
     clean = _clean_text(text)
     if not clean:
-        st.warning("No text to speak.")
+        st.warning(ui_text("voice_no_text", lang))
         return
 
     lang = resolve_lang(lang)
@@ -61,10 +61,7 @@ def speak(text: str, lang: str = "english") -> None:
     tld = _TLD_OVERRIDES.get(lang, "com")
 
     if _GTTS_SUPPORTED_CODES is not None and code not in _GTTS_SUPPORTED_CODES:
-        st.warning(
-            f"🔇 Voice playback isn't available in {native_name(lang)} yet — "
-            f"Google's TTS engine doesn't support it. Showing English audio instead."
-        )
+        st.warning(ui_text("voice_unsupported_lang", lang, code=code))
         code = "en"
         tld = "co.in"
 
@@ -76,7 +73,7 @@ def speak(text: str, lang: str = "english") -> None:
         try:
             tts = gTTS(text=clean, lang=code, slow=False)
         except Exception as e:
-            st.error(f"Could not generate audio for {native_name(lang)}.")
+            st.error(ui_text("voice_audio_error", lang, lang_name=native_name(lang)))
             st.exception(e)
             return
 
