@@ -7,15 +7,39 @@ EXISTING Grad-CAM heatmap (utils/gradcam.py -> compute_gradcam) and the
 model's confidence score. Every value below is derived mathematically
 from the heatmap array — nothing is randomly generated.
 
+──────────────────────────────────────────────────────────────────
+LANGUAGE SUPPORT (fix)
+──────────────────────────────────────────────────────────────────
+Previously this module always built its prose in English, no matter
+which language the farmer had selected in the sidebar — even though
+utils/i18n.py already ships dedicated helpers for exactly this report
+(confidence_interpretation_text, why_predicted_text,
+explainability_summary_text, agricultural_interpretation_text,
+translate_enum, ui_text). This file now accepts a `lang` parameter and
+routes every piece of generated text through those i18n helpers, the
+same way utils/severity.py, utils/pdf_report.py and utils/advisory.py
+already do. All 11 languages are hand-written, local dictionary only —
+no runtime translation API calls anywhere in this module.
+
 Public entry point
 -------------------
-generate_explainability_report(disease, confidence, heatmap, severity_pct=None)
-    -> dict with all report fields, ready to render in Streamlit.
+generate_explainability_report(disease, confidence, heatmap, severity_pct=None, lang="english")
+    -> dict with all report fields, already localized to `lang`,
+       ready to render in Streamlit.
 """
 
 from __future__ import annotations
 import numpy as np
 
+from utils.i18n import (
+    resolve_lang,
+    translate_enum,
+    ui_text,
+    confidence_interpretation_text,
+    why_predicted_text,
+    explainability_summary_text,
+    agricultural_interpretation_text,
+)
 # Activation threshold used to decide "this pixel belongs to the lesion".
 # Kept identical to the threshold already used in utils/severity.py (0.40)
 # so Feature 1 stays numerically consistent with the existing severity math.
@@ -63,8 +87,14 @@ def _region_shares(heatmap: np.ndarray) -> dict:
 
 def _infection_location(shares: dict) -> str:
     """
-    Decide a human-readable infection-location label from region shares.
-    "Multiple Regions" is used when no single zone clearly dominates.
+    Decide a human-readable (English, internal-key) infection-location
+    label from region shares. "Multiple Regions" is used when no single
+    zone clearly dominates.
+
+    NOTE: this returns the stable ENGLISH key (e.g. "Leaf Edge") — it is
+    the lookup key for utils.i18n.translate_enum(), not the text shown to
+    the farmer. Localization happens at the call site in
+    generate_explainability_report(), never here.
     """
     if sum(shares.values()) == 0:
         return "No Significant Activation"
@@ -93,6 +123,10 @@ def _disease_healthy_area(heatmap: np.ndarray) -> tuple[float, float]:
 
 
 def _lesion_coverage_label(disease_pct: float) -> str:
+    """
+    Returns the stable ENGLISH key (matches utils.i18n's lesion-coverage
+    translation block exactly) — localized later via translate_enum().
+    """
     if disease_pct < 15:
         return "Localized (isolated lesions, <15% leaf area)"
     if disease_pct < 40:
@@ -108,6 +142,9 @@ def _heatmap_focus(heatmap: np.ndarray) -> dict:
     Quantify how 'focused' vs 'diffuse' the model's attention is.
     Peak intensity, mean intensity of activated area, and normalised
     spread (std) are used to classify focus as Focused / Moderate / Diffuse.
+
+    `focus_label` here is the stable ENGLISH key — localized later via
+    translate_enum() at the call site.
     """
     activated_vals = heatmap[heatmap > ACTIVATION_THRESHOLD]
     if activated_vals.size == 0:
@@ -137,72 +174,52 @@ def _heatmap_focus(heatmap: np.ndarray) -> dict:
     }
 
 
-# ─────────────────────── CONFIDENCE INTERPRETATION ──────────────
-def _confidence_interpretation(confidence: float, focus_label: str) -> str:
-    conf_pct = confidence * 100
-
-    if conf_pct >= 85:
-        base = "Very high confidence — the model found strong, unambiguous visual evidence."
-    elif conf_pct >= 65:
-        base = "High confidence — clear disease-consistent patterns were detected."
-    elif conf_pct >= 45:
-        base = "Moderate confidence — some disease-consistent features present, but signs are less distinct."
-    else:
-        base = "Low confidence — visual evidence is weak or ambiguous; manual verification is recommended."
-
-    if focus_label == "Focused":
-        base += " The attention heatmap is tightly concentrated on specific lesions, supporting this reading."
-    elif focus_label == "Diffuse":
-        base += " The attention heatmap is spread broadly across the leaf, which can lower prediction certainty."
-
-    return base
-
-
-# ─────────────────────── SUMMARY BUILDERS ───────────────────────
-def _why_predicted(disease: str, location: str, coverage_label: str, focus_label: str) -> str:
-    disease_name = disease.replace("_", " ").title()
-    if disease.lower() in ("healthy", "normal"):
-        return (
-            "The Grad-CAM heatmap shows no meaningful concentration of activation on "
-            "lesion-like regions, and pixel activation stayed below the disease threshold "
-            "across the leaf — consistent with a healthy classification."
-        )
-    return (
-        f"The model concentrated its attention primarily on the {location.lower()}, "
-        f"with a {focus_label.lower()} activation pattern and {coverage_label.lower()}. "
-        f"This spatial pattern of activated pixels is consistent with the visual signature "
-        f"typically associated with {disease_name}."
-    )
-
-
-def _explainability_summary(disease, disease_pct, healthy_pct, location, coverage_label, conf_interp) -> str:
-    disease_name = disease.replace("_", " ").title()
-    return (
-        f"For this leaf, the AI estimated {disease_pct}% of the visible tissue as "
-        f"disease-affected and {healthy_pct}% as healthy, with attention concentrated "
-        f"around the {location.lower()}. Coverage is classified as {coverage_label.lower()}. "
-        f"{conf_interp}"
-    )
+# ─────────────────────── NO-HEATMAP FALLBACK TEXT ───────────────
+# These three sentences only appear when Grad-CAM couldn't run at all.
+# Hand-written for all 11 languages — local dictionary only, no API calls.
+_NO_HEATMAP_WHY = {
+    "english": "Grad-CAM heatmap could not be generated for this image, so a spatial explanation is unavailable. The prediction is based on the model's learned features alone.",
+    "tamil": "இந்த படத்திற்கு Grad-CAM வெப்பப்படத்தை உருவாக்க முடியவில்லை, எனவே இடஞ்சார் விளக்கம் கிடைக்கவில்லை. கணிப்பு மாதிரி கற்றுக்கொண்ட அம்சங்களை மட்டுமே அடிப்படையாகக் கொண்டது.",
+    "telugu": "ఈ చిత్రానికి Grad-CAM హీట్‌మ్యాప్ రూపొందించలేకపోయాము, కాబట్టి ప్రాదేశిక వివరణ అందుబాటులో లేదు. అంచనా మోడల్ నేర్చుకున్న లక్షణాలపై మాత్రమే ఆధారపడి ఉంది.",
+    "kannada": "ಈ ಚಿತ್ರಕ್ಕೆ Grad-CAM ಹೀಟ್‌ಮ್ಯಾಪ್ ರಚಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ, ಆದ್ದರಿಂದ ಪ್ರಾದೇಶಿಕ ವಿವರಣೆ ಲಭ್ಯವಿಲ್ಲ. ಮುನ್ಸೂಚನೆ ಮಾದರಿ ಕಲಿತ ವೈಶಿಷ್ಟ್ಯಗಳ ಮೇಲೆ ಮಾತ್ರ ಆಧಾರಿತವಾಗಿದೆ.",
+    "malayalam": "ഈ ചിത്രത്തിന് Grad-CAM ഹീറ്റ്മാപ്പ് സൃഷ്ടിക്കാൻ കഴിഞ്ഞില്ല, അതിനാൽ സ്ഥലപരമായ വിശദീകരണം ലഭ്യമല്ല. പ്രവചനം മോഡൽ പഠിച്ച സവിശേഷതകളെ മാത്രം അടിസ്ഥാനമാക്കിയുള്ളതാണ്.",
+    "hindi": "इस छवि के लिए Grad-CAM हीटमैप तैयार नहीं किया जा सका, इसलिए स्थानिक व्याख्या उपलब्ध नहीं है। पूर्वानुमान केवल मॉडल की सीखी हुई विशेषताओं पर आधारित है।",
+    "bengali": "এই ছবির জন্য Grad-CAM হিটম্যাপ তৈরি করা যায়নি, তাই স্থানিক ব্যাখ্যা পাওয়া যাচ্ছে না। পূর্বাভাসটি শুধুমাত্র মডেলের শেখা বৈশিষ্ট্যের উপর ভিত্তি করে তৈরি।",
+    "marathi": "या प्रतिमेसाठी Grad-CAM हीटमॅप तयार करता आले नाही, त्यामुळे स्थानिक स्पष्टीकरण उपलब्ध नाही. अंदाज केवळ मॉडेलने शिकलेल्या वैशिष्ट्यांवर आधारित आहे.",
+    "gujarati": "આ છબી માટે Grad-CAM હીટમેપ બનાવી શકાયું નથી, તેથી સ્થાનિક સમજૂતી ઉપલબ્ધ નથી. આગાહી ફક્ત મોડેલે શીખેલી લાક્ષણિકતાઓ પર આધારિત છે.",
+    "punjabi": "ਇਸ ਤਸਵੀਰ ਲਈ Grad-CAM ਹੀਟਮੈਪ ਨਹੀਂ ਬਣਾਇਆ ਜਾ ਸਕਿਆ, ਇਸ ਲਈ ਸਥਾਨਿਕ ਵਿਆਖਿਆ ਉਪਲਬਧ ਨਹੀਂ ਹੈ। ਭਵਿੱਖਬਾਣੀ ਸਿਰਫ਼ ਮਾਡਲ ਦੀਆਂ ਸਿੱਖੀਆਂ ਵਿਸ਼ੇਸ਼ਤਾਵਾਂ 'ਤੇ ਆਧਾਰਿਤ ਹੈ।",
+    "odia": "ଏହି ପ୍ରତିଛବି ପାଇଁ Grad-CAM ହିଟମ୍ୟାପ ପ୍ରସ୍ତୁତ କରାଯାଇ ପାରିଲା ନାହିଁ, ତେଣୁ ସ୍ଥାନିକ ବ୍ୟାଖ୍ୟା ଉପଲବ୍ଧ ନାହିଁ। ପୂର୍ବାନୁମାନ କେବଳ ମଡେଲର ଶିଖିଥିବା ବିଶେଷତା ଉପରେ ଆଧାରିତ।",
+}
+_NO_HEATMAP_SUMMARY = {
+    "english": "Explainability visualisation unavailable for this prediction.",
+    "tamil": "இந்த கணிப்புக்கு விளக்கக்காட்சி கிடைக்கவில்லை.",
+    "telugu": "ఈ అంచనాకు వివరణాత్మక దృశ్యం అందుబాటులో లేదు.",
+    "kannada": "ಈ ಮುನ್ಸೂಚನೆಗೆ ವಿವರಣಾ ದೃಶ್ಯೀಕರಣ ಲಭ್ಯವಿಲ್ಲ.",
+    "malayalam": "ഈ പ്രവചനത്തിന് വിശദീകരണ ദൃശ്യാവിഷ്കാരം ലഭ്യമല്ല.",
+    "hindi": "इस पूर्वानुमान के लिए व्याख्यात्मक दृश्य उपलब्ध नहीं है।",
+    "bengali": "এই পূর্বাভাসের জন্য ব্যাখ্যামূলক ভিজ্যুয়ালাইজেশন উপলব্ধ নেই।",
+    "marathi": "या अंदाजासाठी स्पष्टीकरणात्मक दृश्य उपलब्ध नाही.",
+    "gujarati": "આ આગાહી માટે સમજૂતીત્મક વિઝ્યુલાઇઝેશન ઉપલબ્ધ નથી.",
+    "punjabi": "ਇਸ ਭਵਿੱਖਬਾਣੀ ਲਈ ਵਿਆਖਿਆਤਮਕ ਦ੍ਰਿਸ਼ਟੀਕੋਣ ਉਪਲਬਧ ਨਹੀਂ ਹੈ।",
+    "odia": "ଏହି ପୂର୍ବାନୁମାନ ପାଇଁ ବ୍ୟାଖ୍ୟାତ୍ମକ ଭିଜୁଆଲାଇଜେସନ ଉପଲବ୍ଧ ନାହିଁ।",
+}
+_NO_HEATMAP_AG_INTERP = {
+    "english": "Rely on the treatment and prevention advisory below, and confirm visually in the field.",
+    "tamil": "கீழே உள்ள சிகிச்சை மற்றும் தடுப்பு ஆலோசனையை நம்பி, வயலில் நேரில் உறுதிப்படுத்தவும்.",
+    "telugu": "దిగువ ఉన్న చికిత్స మరియు నివారణ సలహాను ఆధారంగా తీసుకుని, పొలంలో ప్రత్యక్షంగా నిర్ధారించుకోండి.",
+    "kannada": "ಕೆಳಗಿನ ಚಿಕಿತ್ಸೆ ಮತ್ತು ತಡೆಗಟ್ಟುವಿಕೆ ಸಲಹೆಯನ್ನು ಅವಲಂಬಿಸಿ, ಹೊಲದಲ್ಲಿ ದೃಷ್ಟಿಗೋಚರವಾಗಿ ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.",
+    "malayalam": "താഴെയുള്ള ചികിത്സ, പ്രതിരോധ ഉപദേശം ആശ്രയിച്ച്, വയലിൽ നേരിട്ട് ഉറപ്പാക്കുക.",
+    "hindi": "नीचे दी गई उपचार और रोकथाम सलाह पर भरोसा करें, और खेत में स्वयं देखकर पुष्टि करें।",
+    "bengali": "নিচে দেওয়া চিকিৎসা ও প্রতিরোধ পরামর্শের উপর নির্ভর করুন এবং মাঠে চাক্ষুষ যাচাই করুন।",
+    "marathi": "खालील उपचार व प्रतिबंध सल्ल्यावर अवलंबून राहा आणि शेतात प्रत्यक्ष खात्री करा.",
+    "gujarati": "નીચે આપેલી સારવાર અને નિવારણ સલાહ પર આધાર રાખો, અને ખેતરમાં જાતે ખાતરી કરો.",
+    "punjabi": "ਹੇਠਾਂ ਦਿੱਤੀ ਇਲਾਜ ਅਤੇ ਰੋਕਥਾਮ ਸਲਾਹ 'ਤੇ ਭਰੋਸਾ ਕਰੋ, ਅਤੇ ਖੇਤ ਵਿੱਚ ਖੁਦ ਜਾ ਕੇ ਪੁਸ਼ਟੀ ਕਰੋ।",
+    "odia": "ତଳେ ଦିଆଯାଇଥିବା ଚିକିତ୍ସା ଏବଂ ପ୍ରତିରୋଧ ପରାମର୍ଶ ଉପରେ ନିର୍ଭର କରନ୍ତୁ, ଏବଂ କ୍ଷେତରେ ପ୍ରତ୍ୟକ୍ଷ ଭାବେ ନିଶ୍ଚିତ କରନ୍ତୁ।",
+}
 
 
-def _agricultural_interpretation(disease: str, location: str, disease_pct: float) -> str:
-    disease_name = disease.replace("_", " ").title()
-    if disease.lower() in ("healthy", "normal"):
-        return (
-            "No corrective action is indicated. Continue routine field scouting to catch "
-            "early symptoms before they spread."
-        )
-    urgency = (
-        "Inspect the crop in person as soon as possible and consider immediate treatment."
-        if disease_pct >= 40 else
-        "Inspect the highlighted region closely during your next field walk; early-stage "
-        "intervention now can prevent further spread."
-    )
-    return (
-        f"Farmers should physically check the {location.lower()} of affected plants for "
-        f"symptoms typical of {disease_name} (lesions, discolouration, or wilting depending "
-        f"on disease type). {urgency}"
-    )
+def _localized_no_heatmap_text(text_block: dict, lang: str) -> str:
+    return text_block.get(lang, text_block["english"])
 
 
 # ─────────────────────── PUBLIC API ─────────────────────────────
@@ -211,9 +228,10 @@ def generate_explainability_report(
     confidence: float,
     heatmap: np.ndarray | None,
     severity_pct: float | None = None,
+    lang: str = "english",
 ) -> dict:
     """
-    Build the full Feature-1 explainability report.
+    Build the full Feature-1 explainability report, localized to `lang`.
 
     Parameters
     ----------
@@ -224,6 +242,12 @@ def generate_explainability_report(
     severity_pct : optional severity percentage already computed by
                    utils.severity.estimate_severity — included for
                    cross-reference in the summary text.
+    lang         : one of utils.i18n.LANGUAGE_ORDER — every string in the
+                   returned dict (labels + prose) is generated in this
+                   language, mirroring how utils.severity.py and
+                   utils.pdf_report.py already behave. Changing the
+                   farmer's selected language and re-calling this function
+                   changes the ENTIRE report, not just parts of it.
 
     Returns
     -------
@@ -233,48 +257,45 @@ def generate_explainability_report(
         why_predicted, explainability_summary, agricultural_interpretation,
         available (bool — False if no heatmap was available)
     """
+    lang = resolve_lang(lang)
+
     if heatmap is None:
         return {
             "available": False,
             "disease_area_pct": None,
             "healthy_area_pct": None,
-            "infection_location": "Unavailable",
-            "lesion_coverage_label": "Grad-CAM unavailable for this model layer.",
-            "focus": {"focus_label": "Unavailable"},
-            "confidence_interpretation": _confidence_interpretation(confidence, "Unavailable"),
-            "why_predicted": (
-                "Grad-CAM heatmap could not be generated for this image, so a spatial "
-                "explanation is unavailable. The prediction is based on the model's "
-                "learned features alone."
+            "infection_location": translate_enum("Unavailable", lang),
+            "lesion_coverage_label": ui_text("gradcam_unavailable", lang),
+            "focus": {"focus_label": translate_enum("Unavailable", lang)},
+            "confidence_interpretation": confidence_interpretation_text(
+                confidence, "Unavailable", lang
             ),
-            "explainability_summary": (
-                "Explainability visualisation unavailable for this prediction."
-            ),
-            "agricultural_interpretation": (
-                "Rely on the treatment and prevention advisory below, and confirm "
-                "visually in the field."
-            ),
+            "why_predicted": _localized_no_heatmap_text(_NO_HEATMAP_WHY, lang),
+            "explainability_summary": _localized_no_heatmap_text(_NO_HEATMAP_SUMMARY, lang),
+            "agricultural_interpretation": _localized_no_heatmap_text(_NO_HEATMAP_AG_INTERP, lang),
         }
 
     shares = _region_shares(heatmap)
-    location = _infection_location(shares)
+    location_key = _infection_location(shares)
     disease_pct, healthy_pct = _disease_healthy_area(heatmap)
-    coverage_label = _lesion_coverage_label(disease_pct)
+    coverage_key = _lesion_coverage_label(disease_pct)
     focus = _heatmap_focus(heatmap)
-    conf_interp = _confidence_interpretation(confidence, focus["focus_label"])
-    why = _why_predicted(disease, location, coverage_label, focus["focus_label"])
-    summary = _explainability_summary(
-        disease, disease_pct, healthy_pct, location, coverage_label, conf_interp
+    focus_key = focus["focus_label"]
+
+    conf_interp = confidence_interpretation_text(confidence, focus_key, lang)
+    why = why_predicted_text(disease, location_key, coverage_key, focus_key, lang)
+    summary = explainability_summary_text(
+        disease, disease_pct, healthy_pct, location_key, coverage_key, conf_interp, lang
     )
-    ag_interp = _agricultural_interpretation(disease, location, disease_pct)
+    ag_interp = agricultural_interpretation_text(disease, location_key, disease_pct, lang)
 
     return {
         "available": True,
         "disease_area_pct": disease_pct,
         "healthy_area_pct": healthy_pct,
-        "infection_location": location,
-        "lesion_coverage_label": coverage_label,
-        "focus": focus,
+        "infection_location": translate_enum(location_key, lang),
+        "lesion_coverage_label": translate_enum(coverage_key, lang),
+        "focus": {**focus, "focus_label": translate_enum(focus_key, lang)},
         "confidence_interpretation": conf_interp,
         "why_predicted": why,
         "explainability_summary": summary,
