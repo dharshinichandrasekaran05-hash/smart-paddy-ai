@@ -1,9 +1,9 @@
 """
 utils/predict.py — Smart Paddy AI prediction engine.
 
-This version supports older H5 files and runs inference using a direct
-model call instead of model.predict(), avoiding Keras predict-function
-tracing issues on Streamlit Cloud.
+Loads the existing H5 model, removes the legacy DepthwiseConv2D groups field
+when needed, and automatically resizes images to the model's actual input
+height and width.
 """
 
 import os
@@ -18,15 +18,15 @@ from tensorflow.keras.layers import DepthwiseConv2D
 
 MODEL_PATH = "model/paddy_model.h5"
 CLASS_IDX_PATH = "model/class_indices.json"
-IMG_SIZE = (224, 224)
 
 _model = None
 _class_names = None
 _class_indices = None
+_input_size = None
 
 
 class CompatibleDepthwiseConv2D(DepthwiseConv2D):
-    """Load H5 files containing an older groups=1 layer argument."""
+    """Compatibility wrapper for older H5 DepthwiseConv2D configs."""
 
     @classmethod
     def from_config(cls, config):
@@ -45,9 +45,30 @@ def _load_class_indices() -> dict:
         return json.load(file)
 
 
+def _find_input_size(model):
+    """Return (width, height, channels) from the loaded model input shape."""
+    shape = model.input_shape
+
+    if isinstance(shape, list):
+        shape = shape[0]
+    if isinstance(shape, dict):
+        shape = next(iter(shape.values()))
+
+    if shape is None or len(shape) != 4:
+        raise ValueError(
+            f"Unsupported model input shape: {shape}. Expected (None, height, width, channels)."
+        )
+
+    _, height, width, channels = shape
+    if height is None or width is None:
+        raise ValueError(f"Model has dynamic spatial input shape: {shape}")
+
+    return int(width), int(height), int(channels or 3)
+
+
 def get_model():
-    """Load the model and class names once per Streamlit process."""
-    global _model, _class_names, _class_indices
+    """Load the model, input size, and class mapping once."""
+    global _model, _class_names, _class_indices, _input_size
 
     if _model is None:
         if not os.path.exists(MODEL_PATH):
@@ -63,6 +84,7 @@ def get_model():
             },
         )
 
+        _input_size = _find_input_size(_model)
         _class_indices = _load_class_indices()
         _class_names = [
             name
@@ -72,6 +94,7 @@ def get_model():
             )
         ]
 
+        print(f"Model input size: {_input_size}")
         print("===== CLASS MAPPING LOADED =====")
         for index, name in enumerate(_class_names):
             print(f"[{index}] {name}")
@@ -79,32 +102,42 @@ def get_model():
     return _model, _class_names
 
 
-def preprocess(image: Image.Image) -> np.ndarray:
-    """Convert an uploaded image into the model's expected input tensor."""
+def preprocess(image: Image.Image, input_size=None) -> np.ndarray:
+    """Resize and convert an uploaded image to the model input tensor."""
+    if input_size is None:
+        input_size = (224, 224, 3)
+
+    width, height, channels = input_size
+
     try:
         image = ImageOps.exif_transpose(image)
     except Exception:
         pass
 
     image = image.convert("RGB")
-    image = image.resize(IMG_SIZE, Image.LANCZOS)
+    image = image.resize((width, height), Image.LANCZOS)
     array = np.asarray(image, dtype=np.float32)
+
+    if channels == 1:
+        array = np.mean(array, axis=2, keepdims=True)
+    elif channels != 3:
+        raise ValueError(
+            f"Unsupported model channel count: {channels}. Expected 1 or 3."
+        )
+
     return np.expand_dims(array, axis=0)
 
 
 def predict_image(image: Image.Image):
     """Return predicted class, confidence, and class probabilities."""
     model, class_names = get_model()
-    image_tensor = preprocess(image)
+    image_tensor = preprocess(image, _input_size)
 
-    # Direct eager inference avoids Keras' generated tf__predict_function.
+    # Direct eager inference avoids generated tf__predict_function issues.
     output = model(image_tensor, training=False)
-    if hasattr(output, "numpy"):
-        predictions = output.numpy()
-    else:
-        predictions = np.asarray(output)
-
+    predictions = output.numpy() if hasattr(output, "numpy") else np.asarray(output)
     predictions = np.asarray(predictions)[0]
+
     class_index = int(np.argmax(predictions))
     confidence = float(predictions[class_index])
 
