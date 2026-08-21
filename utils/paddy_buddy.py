@@ -82,13 +82,21 @@ _CSS = """
    enough to never cover primary buttons/content. */
 .st-key-paddybuddy_dock {
     position: fixed !important;
-    right: 18px;
-    bottom: 18px;
-    z-index: 9999;
-    width: 92px !important;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    right: 24px !important;
+    bottom: 24px !important;
+    z-index: 10000 !important;
+    width: 88px !important;
+    max-width: 88px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    pointer-events: none;
+}
+.st-key-paddybuddy_dock > div,
+.st-key-paddybuddy_dock .stButton,
+.st-key-paddybuddy_dock .stMarkdown {
+    width: 100% !important;
+    pointer-events: auto;
 }
 .pb-avatar-wrap {
     animation: pb-float 3.2s ease-in-out infinite;
@@ -108,37 +116,41 @@ _CSS = """
     background: #ffffff;
     border: 1px solid #cdeccb;
     border-radius: 14px;
-    padding: 8px 12px;
-    font-size: 12.5px;
+    padding: 8px 11px;
+    font-size: 12px;
     line-height: 1.35;
     color: #1a3c1a !important;
     box-shadow: 0 6px 16px rgba(20,90,50,0.18);
-    max-width: 190px;
-    margin-bottom: 6px;
-    text-align: right;
+    width: 178px;
+    max-width: 178px;
+    margin: 0 auto 7px;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 /* Floating chat panel */
 .st-key-paddybuddy_panel {
     position: fixed !important;
-    right: 18px;
-    bottom: 118px;
-    z-index: 9998;
-    width: min(470px, calc(100vw - 36px)) !important;
-    min-width: 360px !important;
-    height: min(680px, calc(100vh - 150px)) !important;
-    max-width: calc(100vw - 36px) !important;
-    overflow: hidden;
+    right: 24px !important;
+    bottom: 132px !important;
+    z-index: 9999 !important;
+    width: min(420px, calc(100vw - 48px)) !important;
+    min-width: 0 !important;
+    max-width: 420px !important;
+    height: min(620px, calc(100vh - 170px)) !important;
+    min-height: 420px !important;
+    max-height: calc(100vh - 170px) !important;
+    overflow: hidden !important;
     background: #fbfdf8;
     border: 1px solid #cdeccb;
     border-radius: 18px;
     box-shadow: 0 16px 42px rgba(20,90,50,0.32);
-    padding: 16px 18px !important;
+    padding: 14px 16px !important;
     animation: pb-pop-in 0.25s ease-out;
     color: #1a3c1a !important;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
 }
 .st-key-pb_messages {
     flex: 1 1 auto;
@@ -212,11 +224,40 @@ _CSS = """
     margin: 14px 0 7px;
 }
 .st-key-paddybuddy_panel button {
+    width: 100% !important;
     white-space: normal !important;
     height: auto !important;
-    min-height: 38px !important;
+    min-height: 42px !important;
+    padding: 8px 10px !important;
     line-height: 1.25 !important;
     overflow-wrap: break-word !important;
+    word-break: normal !important;
+    text-align: center !important;
+}
+.st-key-paddybuddy_panel .stButton > button {
+    background: #2d7a2d !important;
+    color: #ffffff !important;
+    border: 1px solid #2d7a2d !important;
+    border-radius: 9px !important;
+    font-weight: 600 !important;
+}
+.st-key-paddybuddy_panel .stButton > button p,
+.st-key-paddybuddy_panel .stButton > button span {
+    color: #ffffff !important;
+}
+.st-key-paddybuddy_panel .stButton > button:hover {
+    background: #236523 !important;
+    border-color: #236523 !important;
+}
+.st-key-pb_close_btn button,
+.st-key-pb_close_btn button:hover {
+    background: #ffffff !important;
+    color: #1a3c1a !important;
+    border: 1px solid #cdeccb !important;
+}
+.st-key-pb_close_btn button p,
+.st-key-pb_close_btn button span {
+    color: #1a3c1a !important;
 }
 
 /* ── Streamlit widgets embedded in the panel (text input + buttons) ──
@@ -250,23 +291,56 @@ _CSS = """
     border: 1px solid #cdeccb !important;
 }
 .st-key-pb_close_btn button p { color: #1a3c1a !important; }
+.st-key-paddybuddy_panel .stTextInput {
+    margin-top: 8px !important;
+}
+.st-key-paddybuddy_panel .stTextInput > div > div {
+    border-radius: 10px !important;
+}
+.st-key-paddybuddy_panel .stHorizontalBlock {
+    gap: 8px !important;
+    align-items: stretch !important;
+}
+.st-key-paddybuddy_panel [data-testid="stVerticalBlock"] {
+    gap: 7px !important;
+}
 .st-key-paddybuddy_toggle_btn button {
     background: transparent !important;
     border: none !important;
 }
 
-@media (max-width: 520px) {
-    .st-key-paddybuddy_dock  { width: 72px !important; right: 10px; bottom: 10px; }
+@media (max-width: 700px) {
+    .st-key-paddybuddy_dock {
+        width: 76px !important;
+        max-width: 76px !important;
+        right: 12px !important;
+        bottom: 12px !important;
+    }
     .st-key-paddybuddy_panel {
-        width: calc(100vw - 20px) !important;
+        width: calc(100vw - 24px) !important;
         min-width: 0 !important;
-        max-width: calc(100vw - 20px) !important;
-        height: calc(100vh - 118px) !important;
-        right: 10px;
-        bottom: 96px;
+        max-width: calc(100vw - 24px) !important;
+        height: min(620px, calc(100vh - 132px)) !important;
+        min-height: 390px !important;
+        right: 12px !important;
+        bottom: 104px !important;
         padding: 12px !important;
     }
-    .pb-msg-user, .pb-msg-bot { max-width: 96%; font-size: 14px; }
+    .pb-bubble {
+        width: 160px;
+        max-width: 160px;
+    }
+    .pb-msg-user, .pb-msg-bot {
+        max-width: 96%;
+        font-size: 14px;
+    }
+}
+@media (max-height: 650px) and (min-width: 701px) {
+    .st-key-paddybuddy_panel {
+        height: calc(100vh - 150px) !important;
+        min-height: 360px !important;
+        bottom: 116px !important;
+    }
 }
 </style>
 """
