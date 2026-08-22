@@ -43,6 +43,7 @@ from utils.i18n import (
     chatbot_greeting, quick_questions, translate_enum, tts_code,
     get_capability_dimensions, get_metric_names,
     translate_treatment_name, translate_treatment_stage, translate_treatment_recovery,
+    get_treatment_table_labels,
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -1125,16 +1126,17 @@ if "🔬 Diagnosis" in page:
             f"<div class='section-header'>💊 {L['treatment_effectiveness_header']}</div>",
             unsafe_allow_html=True,
         )
+        table_labels = get_treatment_table_labels(lang)
         treat_rows = [{
-            # Keep treatment/product names exactly as stored in the disease-specific
-            # knowledge base; translate only surrounding table fields.
-            L["treatment_col_option"]:        str(t.get("name", "Consult local agriculture extension officer")),
-            L["treatment_col_priority"]:      translate_enum(str(t["priority"]), lang),
-            L["treatment_col_success_rate"]:  f"{t['success_rate']}%",
-            L["treatment_col_recovery_time"]: translate_treatment_recovery(str(t["recovery_days"]), lang),
-            L["treatment_col_cost"]:          translate_enum(str(t["cost"]), lang),
-            L["treatment_col_eco_friendly"]:  translate_enum(str(t["eco"]), lang),
-            L["treatment_col_best_stage"]:    translate_treatment_stage(t["stage"], lang),
+            # Keep technical treatment/product names exactly as stored;
+            # translate only the surrounding values and headers.
+            table_labels["option"]:        str(t.get("name", "Consult local agriculture extension officer")),
+            table_labels["priority"]:      translate_enum(str(t["priority"]), lang),
+            table_labels["success_rate"]:  f"{t['success_rate']}%",
+            table_labels["recovery_time"]: translate_treatment_recovery(str(t["recovery_days"]), lang),
+            table_labels["cost"]:          translate_enum(str(t["cost"]), lang),
+            table_labels["eco"]:            translate_enum(str(t["eco"]), lang),
+            table_labels["stage"]:          translate_treatment_stage(t["stage"], lang),
         } for t in treatment_data["treatments"]]
         st.dataframe(pd.DataFrame(treat_rows), use_container_width=True, hide_index=True)
 
