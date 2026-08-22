@@ -228,14 +228,30 @@ _UI_RAW = {
     "health_index_axis_label": {"english": "Crop Health Index"},
 
     # ── Diagnosis page: treatment effectiveness table ──────────────
-    "treatment_effectiveness_header": {"english": "Treatment Effectiveness"},
-    "treatment_col_option": {"english": "Treatment Option"},
-    "treatment_col_priority": {"english": "Priority"},
-    "treatment_col_success_rate": {"english": "Success Rate"},
-    "treatment_col_recovery_time": {"english": "Recovery Time (days)"},
-    "treatment_col_cost": {"english": "Cost"},
-    "treatment_col_eco_friendly": {"english": "Eco-Friendly"},
-    "treatment_col_best_stage": {"english": "Best Applied At Stage"},
+    "treatment_effectiveness_header": {
+        "english": "Treatment Effectiveness", "tamil": "சிகிச்சை செயல்திறன்", "telugu": "చికిత్స సమర్థత", "kannada": "ಚಿಕಿತ್ಸೆ ಪರಿಣಾಮಕಾರಿತ್ವ", "malayalam": "ചികിത്സാ ഫലപ്രാപ്തി", "hindi": "उपचार प्रभावशीलता", "bengali": "চিকিৎসা কার্যকারিতা", "marathi": "उपचार परिणामकारकता", "gujarati": "સારવાર અસરકારકતા", "punjabi": "ਇਲਾਜ ਪ੍ਰਭਾਵਸ਼ੀਲਤਾ", "odia": "ଚିକିତ୍ସା କାର୍ଯ୍ୟକାରିତା",
+    },
+    "treatment_col_option": {
+        "english": "Treatment Option", "tamil": "சிகிச்சை விருப்பம்", "telugu": "చికిత్స ఎంపిక", "kannada": "ಚಿಕಿತ್ಸೆ ಆಯ್ಕೆ", "malayalam": "ചികിത്സാ ഓപ്ഷൻ", "hindi": "उपचार विकल्प", "bengali": "চিকিৎসার বিকল্প", "marathi": "उपचार पर्याय", "gujarati": "સારવાર વિકલ્પ", "punjabi": "ਇਲਾਜ ਵਿਕਲਪ", "odia": "ଚିକିତ୍ସା ବିକଳ୍ପ",
+    },
+    "treatment_col_priority": {
+        "english": "Priority", "tamil": "முன்னுரிமை", "telugu": "ప్రాధాన్యత", "kannada": "ಆದ್ಯತೆ", "malayalam": "മുൻഗണന", "hindi": "प्राथमिकता", "bengali": "অগ্রাধিকার", "marathi": "प्राधान्य", "gujarati": "પ્રાથમિકતા", "punjabi": "ਤਰਜੀਹ", "odia": "ପ୍ରାଥମିକତା",
+    },
+    "treatment_col_success_rate": {
+        "english": "Success Rate", "tamil": "வெற்றி விகிதம்", "telugu": "విజయ రేటు", "kannada": "ಯಶಸ್ಸಿನ ಪ್ರಮಾಣ", "malayalam": "വിജയ നിരക്ക്", "hindi": "सफलता दर", "bengali": "সাফল্যের হার", "marathi": "यशाचे प्रमाण", "gujarati": "સફળતા દર", "punjabi": "ਸਫਲਤਾ ਦਰ", "odia": "ସଫଳତା ହାର",
+    },
+    "treatment_col_recovery_time": {
+        "english": "Recovery Time (days)", "tamil": "மீட்பு காலம் (நாட்கள்)", "telugu": "కోలుకునే సమయం (రోజులు)", "kannada": "ಚೇತರಿಕೆಯ ಅವಧಿ (ದಿನಗಳು)", "malayalam": "വീണ്ടെടുക്കൽ സമയം (ദിവസങ്ങൾ)", "hindi": "ठीक होने का समय (दिन)", "bengali": "সুস্থতার সময় (দিন)", "marathi": "बरे होण्याचा कालावधी (दिवस)", "gujarati": "સુધારાનો સમય (દિવસો)", "punjabi": "ਠੀਕ ਹੋਣ ਦਾ ਸਮਾਂ (ਦਿਨ)", "odia": "ସୁସ୍ଥ ହେବାର ସମୟ (ଦିନ)",
+    },
+    "treatment_col_cost": {
+        "english": "Cost", "tamil": "செலவு", "telugu": "ఖర్చు", "kannada": "ವೆಚ್ಚ", "malayalam": "ചെലവ്", "hindi": "लागत", "bengali": "খরচ", "marathi": "खर्च", "gujarati": "ખર્ચ", "punjabi": "ਲਾਗਤ", "odia": "ଖର୍ଚ୍ଚ",
+    },
+    "treatment_col_eco_friendly": {
+        "english": "Eco-Friendly", "tamil": "சுற்றுச்சூழல் நட்பு", "telugu": "పర్యావరణ అనుకూలం", "kannada": "ಪರಿಸರ ಸ್ನೇಹಿ", "malayalam": "പരിസ്ഥിതി സൗഹൃദം", "hindi": "पर्यावरण अनुकूल", "bengali": "পরিবেশবান্ধব", "marathi": "पर्यावरणपूरक", "gujarati": "પર્યાવરણને અનુકૂળ", "punjabi": "ਵਾਤਾਵਰਣ-ਅਨੁਕੂਲ", "odia": "ପରିବେଶ ଅନୁକୂଳ",
+    },
+    "treatment_col_best_stage": {
+        "english": "Best Applied At Stage", "tamil": "சிறந்த பயன்பாட்டு நிலை", "telugu": "ఉత్తమంగా వర్తించే దశ", "kannada": "ಅತ್ಯುತ್ತಮ ಅನ್ವಯ ಹಂತ", "malayalam": "ഏറ്റവും അനുയോജ്യമായ ഘട്ടം", "hindi": "उपयोग का सर्वोत्तम चरण", "bengali": "প্রয়োগের সেরা পর্যায়", "marathi": "लागू करण्याची सर्वोत्तम अवस्था", "gujarati": "લાગુ કરવાનો શ્રેષ્ઠ તબક્કો", "punjabi": "ਲਾਗੂ ਕਰਨ ਦਾ ਸਭ ਤੋਂ ਵਧੀਆ ਪੜਾਅ", "odia": "ପ୍ରୟୋଗର ସର୍ବୋତ୍ତମ ପର୍ଯ୍ୟାୟ",
+    },
 
     # ── Model Performance page: header / capability comparison ─────
     "model_performance_title": {"english": "Model Performance"},
